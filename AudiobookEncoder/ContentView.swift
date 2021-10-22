@@ -19,7 +19,7 @@ struct ContentView: View {
     @State private var qualityPresets: [String] = [" 96 Kbps, Stereo, 48 kHz", "128 Kbps, Stereo, 48 kHz", "256 Kbps, Stereo, 48 kHz", "320 Kbps, Stereo, 48 kHz"]
     @State private var selectedPreset: String = " 96 Kbps, Stereo, 48 kHz"
     @State private var active: Bool = true
-    var lunch: [String] = ["Nudeln", "Pizza", "Lasagne"]
+    var audiofiles: [String] = ["Audiofile 1", "Audiofile 2", "Audiofile 3"]
     var body: some View {
         HStack {
             VStack {
@@ -58,7 +58,7 @@ struct ContentView: View {
             .padding(.trailing, 10)
             .frame(maxWidth: 300)
             List {
-                ForEach(lunch, id: \.self) { p in
+                ForEach(audiofiles, id: \.self) { p in
                     Text(p)
                 }
             }
