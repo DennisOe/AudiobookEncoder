@@ -4,18 +4,6 @@
 from PySide6 import QtGui, QtCore, QtWidgets
 
 
-class PushButton(QtWidgets.QPushButton):
-    """Costum QPushButton"""
-    def __init__(self, args: dict) -> None:
-        super().__init__()
-        self.setParent(args["parent"])
-        self.setGeometry(*args["geometry"])
-        self.setText(args["name"])
-        self.setToolTip(args["tip"])
-        # Signals
-        #self.clicked.connec(args["action"])
-
-
 class TreeWidget(QtWidgets.QTreeWidget):
     """Costum QTreeWidget"""
     def __init__(self, args: dict) -> None:
@@ -38,30 +26,63 @@ class TreeWidget(QtWidgets.QTreeWidget):
         #self.itemSelectionChanged.connect(self.changeWidgets)
         #self.itemDoubleClicked.connect(self.openFolder)
     
-    def add_parent_item(self, total_length: str) -> None:
-        parent_item = TreeWidgetItem(dict(parent=self))
-        parent_item.set_setup_menu()
+    def add_parent_item(self) -> QtWidgets.QTreeWidgetItem:
+        parent_item = TreeWidgetItem()
+        parent_item.add_user_inputs(parent=self)
         parent_item.setSizeHint(0, QtCore.QSize(100, 100))
+        return parent_item
     
-    def add_child_item(self, text: list[str]) -> None: # anderen parent
-        child_item = TreeWidgetItem(dict(parent=self))
-        child_item.set_text(text)
+    def add_child_item(self, args: dict) -> None:
+        child_item = TreeWidgetItem()
+        args["parent"].addChild(child_item)
+        child_item.set_text(args)
+    
+    def create_tree(self, audiobook_data: dict) -> None:
+        for e_audiobook in audiobook_data.keys():
+            # create parent item
+            audiobook = self.add_parent_item()
+            # edit user inputs with audiobook_data infos
+            for input in audiobook.user_inputs.keys():
+                if not input in audiobook_data[e_audiobook]:
+                    continue
+                input_widget = audiobook.user_inputs[input]
+                if isinstance(input_widget, TextField):
+                    input_widget.setText(audiobook_data[e_audiobook][input])
+                elif isinstance(input_widget, BookCover):
+                    input_widget.cover.load(audiobook_data[e_audiobook][input])
+                    input_widget.setPixmap(input_widget.cover.scaledToHeight(70))
+                elif isinstance(input_widget, Label):
+                    input_widget.setText(audiobook_data[e_audiobook][input])
+                elif isinstance(input_widget, ExportOptions):
+                    input_widget.setCurrentIndex(audiobook_data[e_audiobook][input])
+                elif isinstance(input_widget, ToggleButton):
+                    input_widget.toggleColor("DarkGreen" if audiobook_data[e_audiobook][input] else "DarkRed")
+            # add all files als children    
+            for eFile in audiobook_data[e_audiobook]["files"]:
+                self.add_child_item(dict(parent=audiobook,
+                                         file=eFile["file"],
+                                         length=eFile["length"]))
+        # ??in extra function??
+        if len(audiobook_data.keys()):
+            self.help_text.hide()
+            self.setHeaderLabels([f"Audiobook (0/{len(audiobook_data.keys())})", "Length"])
+        
 
 class TreeWidgetItem(QtWidgets.QTreeWidgetItem):
     """Costum QTreeWidgetItem""" 
-    def __init__(self, args: dict) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.args = args
-        self.args["parent"].addTopLevelItem(self)
         self.setFlags(QtCore.Qt.ItemIsEnabled |
                       QtCore.Qt.ItemIsSelectable |
                       QtCore.Qt.ItemIsDropEnabled)
+        self.user_inputs = {}
     
-    def set_text(self, text: list[str]) -> None:
-        self.setText(0, text[0])
-        self.setText(1, text[1])
-    
-    def set_setup_menu(self) -> None:
+    def set_text(self, args: dict) -> None:
+        self.setText(0, args["file"])
+        self.setText(1, args["length"])
+
+    def add_user_inputs(self, parent: QtWidgets.QTreeWidget) -> None:
+        parent.addTopLevelItem(self)
         # qwidget sets scale and style for column 0 & 1
         column0_style = QtWidgets.QWidget()
         column0_style.setObjectName("c0")
@@ -69,24 +90,20 @@ class TreeWidgetItem(QtWidgets.QTreeWidgetItem):
                                                  border-top-left-radius: 10px;\
                                                  border-bottom-left-radius: 10px;\
                                                  margin: 5px 0px 5px 0px;}")
-        self.args["parent"].setItemWidget(self, 0, column0_style)
+        parent.setItemWidget(self, 0, column0_style)
         column1_style = QtWidgets.QWidget()
         column1_style.setObjectName("c1")
         column1_style.setStyleSheet("QWidget#c1 {background-color: DarkGray;\
                                                  border-top-right-radius: 10px;\
                                                  border-bottom-right-radius: 10px;\
                                                  margin: 5px 5px 5px 0px;}")
-        self.args["parent"].setItemWidget(self, 1, column1_style)
+        parent.setItemWidget(self, 1, column1_style)
         # audiobook editing widgets
-        activate_export = PushButton(dict(name="", 
+        activate_export = ToggleButton(dict(name="", 
                                           parent=column0_style,
                                           geometry=[0, 0, 20, 100],
                                           tip="",
                                           action=""))
-        activate_export.setStyleSheet("QPushButton {background-color: lightGreen;\
-                                                    border-top-left-radius: 10px;\
-                                                    border-bottom-left-radius: 10px;\
-                                                    margin: 5px 5px 5px 0px;}")
         book_cover = BookCover(column0_style)
         book_title = TextField(dict(name="Title",
                                     parent=column0_style,
@@ -113,12 +130,59 @@ class TreeWidgetItem(QtWidgets.QTreeWidgetItem):
                                        geometry=[630, 53, 25, 30],
                                        tip="",
                                        action=""))
+        book_length = Label(dict(text="Length",
+                                 parent=column1_style,
+                                 position=[4, 40]))
+        # add user input field for later edits
+        self.user_inputs.update({"export": activate_export,
+                                 "cover": book_cover,
+                                 "title": book_title,
+                                 "author": book_author,
+                                 "quality": book_quality,
+                                 "length": book_length,
+                                 "destination": book_export})
 
 
+class PushButton(QtWidgets.QPushButton):
+    """Costum QPushButton"""
+    def __init__(self, args: dict) -> None:
+        super().__init__()
+        self.setParent(args["parent"])
+        self.setGeometry(*args["geometry"])
+        self.setText(args["name"])
+        self.setToolTip(args["tip"])
+        # Signals
+        #self.clicked.connec(args["action"])
 
-        book_length = QtWidgets.QLabel("Length", column1_style)
-        book_length.move(4, 40)
-    
+
+class ToggleButton(QtWidgets.QPushButton):
+    """Costum Toggle QPushButton"""
+    def __init__(self, args: dict) -> None:
+        super().__init__()
+        self.setParent(args["parent"])
+        self.setGeometry(*args["geometry"])
+        self.setText(args["name"])
+        self.setStyleSheet("QPushButton {background-color: transparent;\
+                                         border-top-left-radius: 10px;\
+                                         border-bottom-left-radius: 10px;\
+                                         margin: 5px 5px 5px 0px;}")
+        self.setToolTip(args["tip"])
+        # Signals
+        #self.clicked.connec(args["action"])
+
+    def toggleColor(self, color: str):
+        self.setStyleSheet(self.styleSheet().replace("transparent", color))
+
+
+class Label(QtWidgets.QLabel):
+    """Costum QLabel"""
+    def __init__(self, args: dict) -> None:
+        super().__init__()
+        self.setParent(args["parent"])
+        self.move(*args["position"])
+        self.setText(args["text"])
+
+
 class BookCover(QtWidgets.QLabel):
     """Costum QLabel to display artwork"""
     def __init__(self, parent: QtWidgets.QWidget) -> None:
@@ -134,6 +198,24 @@ class BookCover(QtWidgets.QLabel):
                                     color: grey;}")
         self.setAcceptDrops(True)
         self.cover = QtGui.QPixmap()
+    
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                # ????everything will be converted to png and deleted
+                self.cover.load(url.path())
+                self.setPixmap(self.cover.scaledToHeight(70))
+                event.acceptProposedAction()
+
+        else:
+            super().dropEvent(event)
+
 
 class TextField(QtWidgets.QLineEdit):
     """Costum QLineEdit"""
@@ -146,6 +228,7 @@ class TextField(QtWidgets.QLineEdit):
                             border: 2px solid grey;\
                             background-color: DarkGray;")
         # Signals
+
 
 class ExportOptions(QtWidgets.QComboBox):
     def __init__(self, args: dict) -> None: 
