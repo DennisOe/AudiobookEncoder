@@ -13,6 +13,7 @@ __email__ = "dennis.oesterle@icloud.com"
 from PySide6 import QtGui, QtCore, QtWidgets
 import sys
 from widgets import TreeWidget, PushButton
+from jsonio import JsonIO
 
 
 class AudiobookEncoderMainWindow(QtWidgets.QMainWindow):
@@ -32,19 +33,9 @@ class AudiobookEncoderMainWindow(QtWidgets.QMainWindow):
                                               geometry=[10, 10, 
                                               self.window_size["x"]-20,
                                               self.window_size["y"]-50]))
-        data = {"1 - Der super Papagai":
-                    {"title": "1 - Der super Papagai",
-                     "author": "Die drei Fragezeichen",
-                     "genre": "Audiobook",
-                     "cover": "/Users/dennisoesterle/Desktop/cover.jpg",
-                     "length": "2:00",
-                     "destination": "/Desktop/",
-                     "quality": 1,
-                     "files": [{"file": "/audiofile1.mp3", "length": "1:20"}, {"file": "/audiofile2.mp3", "length": "1:20"}, {"file": "/audiofile3.mp3", "length": "1:20"}, {"file": "/audiofile4.mp3", "length": "1:20"}], 
-                     "export": True,
-                    },
-                }
-        self.audiobook_tree.create_tree(data)
+
+        #JsonIO.write(data, "AudiobookEncoder/core/audiobooks.json")
+        self.audiobook_tree.create_tree(JsonIO.read("AudiobookEncoder/core/audiobooks.json"))
                 
         
         PushButton(dict(name="Export", 
