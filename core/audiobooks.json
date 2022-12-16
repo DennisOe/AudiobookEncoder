@@ -4,25 +4,25 @@
         "author": "Die drei Fragezeichen",
         "genre": "Audiobook",
         "cover": "/Users/dennisoesterle/Desktop/cover.jpg",
-        "length": "2:00",
+        "duration": "2:00",
         "destination": "/Desktop/",
         "quality": 1,
         "files": [
             {
                 "file": "/audiofile1.mp3",
-                "length": "1:20"
+                "duration": "1:20"
             },
             {
                 "file": "/audiofile2.mp3",
-                "length": "1:20"
+                "duration": "1:20"
             },
             {
                 "file": "/audiofile3.mp3",
-                "length": "1:20"
+                "duration": "1:20"
             },
             {
                 "file": "/audiofile4.mp3",
-                "length": "1:20"
+                "duration": "1:20"
             }
         ],
         "export": true
