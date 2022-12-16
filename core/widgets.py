@@ -2,9 +2,9 @@
 # TODO: coverExists
 
 from PySide6 import QtGui, QtCore, QtWidgets
+from audiobook import Audiobook
 
-
-class TreeWidget(QtWidgets.QTreeWidget):
+class TreeWidget(QtWidgets.QTreeWidget, Audiobook):
     """Costum QTreeWidget"""
     def __init__(self, args: dict) -> None:
         super().__init__()
@@ -14,6 +14,7 @@ class TreeWidget(QtWidgets.QTreeWidget):
         self.header().resizeSection(0, args["geometry"][2]-110)
         self.header().setStretchLastSection(True)        
         self.setAcceptDrops(True)
+        self.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
         self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         # help text
         self.help_text = QtWidgets.QLabel("Drag and Drop <br> Audiobooks", self)
@@ -26,6 +27,37 @@ class TreeWidget(QtWidgets.QTreeWidget):
         #self.itemSelectionChanged.connect(self.changeWidgets)
         #self.itemDoubleClicked.connect(self.openFolder)
     
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            audiobook_data: dict = self.audiobook_default_data()
+            for each_path in event.mimeData().urls():
+                if QtCore.QFileInfo(each_path.path()).isDir():
+                    pass
+                else:
+                    meta_data = self.get_meta_data(each_path.path())                    
+                    if "name" in audiobook_data:
+                        title = meta_data["title"]
+                        audiobook_data[title] = audiobook_data.pop("name")
+                        audiobook_data[title]["title"] = meta_data["title"]
+                        audiobook_data[title]["author"] = meta_data["author"]
+                    audiobook_data[title]["files"].append(dict(file=each_path.path(),
+                                                               duration=meta_data["duration"]))
+            for e in audiobook_data.keys():
+                print(e)
+                for i in audiobook_data[e].keys():
+                    print(i, audiobook_data[e][i])
+        else:
+            super().dropEvent(event)
+
     def add_parent_item(self) -> QtWidgets.QTreeWidgetItem:
         parent_item = TreeWidgetItem()
         parent_item.add_user_inputs(parent=self)
@@ -61,11 +93,11 @@ class TreeWidget(QtWidgets.QTreeWidget):
             for eFile in audiobook_data[e_audiobook]["files"]:
                 self.add_child_item(dict(parent=audiobook,
                                          file=eFile["file"],
-                                         length=eFile["length"]))
+                                         duration=eFile["duration"]))
         # ??in extra function??
         if len(audiobook_data.keys()):
             self.help_text.hide()
-            self.setHeaderLabels([f"Audiobook (0/{len(audiobook_data.keys())})", "Length"])
+            self.setHeaderLabels([f"Audiobook (0/{len(audiobook_data.keys())})", "Duration"])
         
 
 class TreeWidgetItem(QtWidgets.QTreeWidgetItem):
@@ -79,7 +111,7 @@ class TreeWidgetItem(QtWidgets.QTreeWidgetItem):
     
     def set_text(self, args: dict) -> None:
         self.setText(0, args["file"])
-        self.setText(1, args["length"])
+        self.setText(1, args["duration"])
 
     def add_user_inputs(self, parent: QtWidgets.QTreeWidget) -> None:
         parent.addTopLevelItem(self)
@@ -130,7 +162,7 @@ class TreeWidgetItem(QtWidgets.QTreeWidgetItem):
                                        geometry=[630, 53, 25, 30],
                                        tip="",
                                        action=""))
-        book_length = Label(dict(text="Length",
+        book_duration = Label(dict(text="Duration",
                                  parent=column1_style,
                                  position=[4, 40]))
         # add user input field for later edits
@@ -139,7 +171,7 @@ class TreeWidgetItem(QtWidgets.QTreeWidgetItem):
                                  "title": book_title,
                                  "author": book_author,
                                  "quality": book_quality,
-                                 "length": book_length,
+                                 "duration": book_duration,
                                  "destination": book_export})
 
 
