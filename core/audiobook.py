@@ -1,6 +1,5 @@
 # holds all scripts for editing audiobooks
 import mutagen
-import datetime
 from mutagen.mp4 import MP4, MP4Cover 
 from jsonio  import JsonIO
 from PySide6 import QtCore
@@ -13,7 +12,7 @@ class Audiobook():
                                     "author": "",
                                     "genre": "Audiobook",
                                     "cover": "",
-                                    "duration": "",
+                                    "duration": 0,
                                     "destination": "",
                                     "quality": 0,
                                     "files": [],
@@ -35,7 +34,8 @@ class Audiobook():
         files: list = []
         for each_path in paths:
             if QtCore.QFileInfo(each_path.path()).isDir():
-                    dir = QtCore.QDirIterator(each_path.path(), ["*.mp3"], flags=QtCore.QDirIterator.Subdirectories)
+                    dir = QtCore.QDirIterator(each_path.path(), ["*.mp3"],
+                                              flags=QtCore.QDirIterator.Subdirectories)
                     while dir.hasNext():
                         file = dir.next()
                         files.append(file)
@@ -51,11 +51,11 @@ class Audiobook():
                 self.data[title] = self.data.pop("name")
                 self.data[title]["title"] = meta_data["title"]
                 self.data[title]["author"] = meta_data["author"]
+            self.data[title]["duration"] += meta_data["duration"]
             self.data[title]["files"].append(dict(file=each_file,
-                                                    duration=meta_data["duration"]))
+                                                  duration=meta_data["duration"]))
         self.save_data()
         return self.data
-
 
     def get_meta_data(self, path: str) -> dict:
         audio_file = mutagen.File(path)
@@ -68,7 +68,7 @@ class Audiobook():
                 continue
             meta_data.update({key: " ".join(audio_file[e_tag].text)})
         else:
-            duration = str(datetime.timedelta(seconds=round(audio_file.info.length)))
+            duration = round(audio_file.info.length)
             meta_data.update({"duration": duration})
         return meta_data
 
