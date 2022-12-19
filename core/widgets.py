@@ -1,7 +1,9 @@
 # holds costum ui widgets
 
 from PySide6 import QtGui, QtCore, QtWidgets
+from datetime import timedelta
 from audiobook import Audiobook
+from jsonio import JsonIO
 
 
 class TreeWidget(QtWidgets.QTreeWidget):
@@ -23,6 +25,7 @@ class TreeWidget(QtWidgets.QTreeWidget):
                                               font-weight: bold;\
                                               qproperty-alignment: AlignCenter;\
                                               color: grey;}")
+        self.create_tree(JsonIO.read("AudiobookEncoder/core/audiobooks.json"))
         # Signals
         #self.itemSelectionChanged.connect(self.changeWidgets)
         #self.itemDoubleClicked.connect(self.openFolder)
@@ -80,14 +83,17 @@ class TreeWidget(QtWidgets.QTreeWidget):
                 if isinstance(input_widget, TextField):
                     input_widget.setText(audiobook_data[e_audiobook][input])
                 elif isinstance(input_widget, BookCover):
+                    if not audiobook_data[e_audiobook][input]:
+                        continue
                     input_widget.cover.load(audiobook_data[e_audiobook][input])
                     input_widget.setPixmap(input_widget.cover.scaledToHeight(70))
                 elif isinstance(input_widget, Label):
-                    input_widget.setText(audiobook_data[e_audiobook][input])
+                    input_widget.setText(str(timedelta(seconds=audiobook_data[e_audiobook][input])))
                 elif isinstance(input_widget, ExportOptions):
                     input_widget.setCurrentIndex(audiobook_data[e_audiobook][input])
                 elif isinstance(input_widget, ToggleButton):
-                    input_widget.toggleColor("DarkGreen" if audiobook_data[e_audiobook][input] else "DarkRed")
+                    input_widget.toggleColor("DarkGreen" if audiobook_data[e_audiobook][input]
+                                                         else "DarkRed")
             # add all files als children    
             for eFile in audiobook_data[e_audiobook]["files"]:
                 self.add_child_item(dict(parent=audiobook,
@@ -110,7 +116,7 @@ class TreeWidgetItem(QtWidgets.QTreeWidgetItem):
     
     def set_text(self, args: dict) -> None:
         self.setText(0, args["file"])
-        self.setText(1, args["duration"])
+        self.setText(1, str(timedelta(seconds=round(args["duration"]))))
 
     def add_user_inputs(self, parent: QtWidgets.QTreeWidget) -> None:
         parent.addTopLevelItem(self)
@@ -163,7 +169,7 @@ class TreeWidgetItem(QtWidgets.QTreeWidgetItem):
                                        action=""))
         book_duration = Label(dict(text="Duration",
                                  parent=column1_style,
-                                 position=[4, 40]))
+                                 geometry=[4, 40, 100, 20]))
         # add user input field for later edits
         self.user_inputs.update({"export": activate_export,
                                  "cover": book_cover,
@@ -179,6 +185,7 @@ class PushButton(QtWidgets.QPushButton):
     def __init__(self, args: dict) -> None:
         super().__init__()
         self.setParent(args["parent"])
+        self.setVisible(True)
         self.setGeometry(*args["geometry"])
         self.setText(args["name"])
         self.setToolTip(args["tip"])
@@ -191,6 +198,7 @@ class ToggleButton(QtWidgets.QPushButton):
     def __init__(self, args: dict) -> None:
         super().__init__()
         self.setParent(args["parent"])
+        self.setVisible(True)
         self.setGeometry(*args["geometry"])
         self.setText(args["name"])
         self.setStyleSheet("QPushButton {background-color: transparent;\
@@ -210,7 +218,8 @@ class Label(QtWidgets.QLabel):
     def __init__(self, args: dict) -> None:
         super().__init__()
         self.setParent(args["parent"])
-        self.move(*args["position"])
+        self.setVisible(True)
+        self.setGeometry(*args["geometry"])
         self.setText(args["text"])
 
 
@@ -219,6 +228,7 @@ class BookCover(QtWidgets.QLabel):
     def __init__(self, parent: QtWidgets.QWidget) -> None:
         super().__init__()
         self.setParent(parent)
+        self.setVisible(True)
         self.setText("Drop <br> Cover")
         self.setToolTip("Double click to delete cover artwork.")
         self.setGeometry(20, 10, 80, 80)
@@ -253,6 +263,7 @@ class TextField(QtWidgets.QLineEdit):
     def __init__(self, args: dict) -> None:
         super().__init__()
         self.setParent(args["parent"])
+        self.setVisible(True)
         self.setGeometry(*args["geometry"])
         self.setPlaceholderText(args["name"])
         self.setStyleSheet("border-radius: 5px;\
@@ -265,6 +276,7 @@ class ExportOptions(QtWidgets.QComboBox):
     def __init__(self, args: dict) -> None: 
         super().__init__()
         self.setParent(args["parent"])
+        self.setVisible(True)
         self.setGeometry(*args["geometry"])
         self.addItems(args["options"])
         self.setToolTip("Change quality of an audiobook.")
