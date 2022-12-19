@@ -1,10 +1,10 @@
 # holds costum ui widgets
-# TODO: coverExists
 
 from PySide6 import QtGui, QtCore, QtWidgets
 from audiobook import Audiobook
 
-class TreeWidget(QtWidgets.QTreeWidget, Audiobook):
+
+class TreeWidget(QtWidgets.QTreeWidget):
     """Costum QTreeWidget"""
     def __init__(self, args: dict) -> None:
         super().__init__()
@@ -38,25 +38,24 @@ class TreeWidget(QtWidgets.QTreeWidget, Audiobook):
 
     def dropEvent(self, event):
         if event.mimeData().hasUrls():
-            audiobook_data: dict = self.audiobook_default_data()
-            for each_path in event.mimeData().urls():
-                if QtCore.QFileInfo(each_path.path()).isDir():
-                    pass
-                else:
-                    meta_data = self.get_meta_data(each_path.path())                    
-                    if "name" in audiobook_data:
-                        title = meta_data["title"]
-                        audiobook_data[title] = audiobook_data.pop("name")
-                        audiobook_data[title]["title"] = meta_data["title"]
-                        audiobook_data[title]["author"] = meta_data["author"]
-                    audiobook_data[title]["files"].append(dict(file=each_path.path(),
-                                                               duration=meta_data["duration"]))
-            for e in audiobook_data.keys():
-                print(e)
-                for i in audiobook_data[e].keys():
-                    print(i, audiobook_data[e][i])
+            data: dict = Audiobook().get_data(event.mimeData().urls())
+            self.create_tree(data)
         else:
             super().dropEvent(event)
+
+    def keyPressEvent(self, event):
+        if (event.modifiers() == QtCore.Qt.ControlModifier and
+            event.key() == QtCore.Qt.Key_Backspace):
+            # delete audiobooks or files
+            root_item = self.invisibleRootItem()
+            for each_item in self.selectedItems():
+                if not each_item.text(0):
+                    # delete parent items
+                    root_item.removeChild(each_item)
+                    Audiobook().delete_data(each_item.user_inputs["title"].text())
+                    continue
+                # delete child items
+                each_item.parent().removeChild(each_item)
 
     def add_parent_item(self) -> QtWidgets.QTreeWidgetItem:
         parent_item = TreeWidgetItem()
