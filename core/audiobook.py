@@ -1,41 +1,53 @@
 # holds all scripts for editing audiobooks
 import mutagen
 from mutagen.mp4 import MP4, MP4Cover 
+from PySide6.QtCore import QUrl, QFileInfo, QDirIterator
 from jsonio  import JsonIO
-from PySide6 import QtCore
+
 
 class Audiobook():
     def __init__(self):
         self.path: str = "AudiobookEncoder/core/audiobooks.json"
-        self.files: list[str]
-        self.data: dict = {"name": {"title": "",
-                                    "author": "",
-                                    "genre": "Audiobook",
-                                    "cover": "",
-                                    "duration": 0,
-                                    "destination": "",
-                                    "quality": 0,
-                                    "files": [],
-                                    "export": True,}}
+        self.data: dict = {"audiobook_index": {"title": "",
+                                               "author": "",
+                                               "genre": "Audiobook",
+                                               "cover": "",
+                                               "duration": 0,
+                                               "destination": "",
+                                               "quality": 0,
+                                               "files": [],
+                                               "export": True,}}
     
-    def save_data(self) -> dict:
+    def save_data(self, data: dict) -> dict:
         json_data = JsonIO().read(self.path)
-        json_data.update(self.data)
+        json_data.update(data)
         JsonIO().write(json_data, self.path)
         return json_data
     
+    def read_data(self) -> dict:
+        return JsonIO.read(self.path)
+
     def delete_data(self, key: str) -> dict:
         json_data = JsonIO.read(self.path)
         json_data.pop(key, None)
         JsonIO().write(json_data, self.path)
         return json_data
     
-    def get_data(self, paths: list[QtCore.QUrl]) -> dict:
+    def delete_file(self, keys: dict) -> None:
+        # TODO: not working
+        json_data = JsonIO.read(self.path)
+        print(json_data[keys["title"]]["file"])
+        json_data[keys["title"]]["file"].pop(keys["file"], None)
+        JsonIO().write(json_data, self.path)
+        return json_data
+    
+    def get_data(self, paths: list[QUrl]) -> dict:
         files: list = []
+        audiobook_count = len(self.read_data())
         for each_path in paths:
-            if QtCore.QFileInfo(each_path.path()).isDir():
-                    dir = QtCore.QDirIterator(each_path.path(), ["*.mp3"],
-                                              flags=QtCore.QDirIterator.Subdirectories)
+            if QFileInfo(each_path.path()).isDir():
+                    dir = QDirIterator(each_path.path(), ["*.mp3"],
+                                              flags=QDirIterator.Subdirectories)
                     while dir.hasNext():
                         file = dir.next()
                         files.append(file)
@@ -46,15 +58,15 @@ class Audiobook():
             if not each_file.lower().endswith(".mp3"):
                 continue
             meta_data = self.get_meta_data(each_file)                    
-            if "name" in self.data:
-                title = meta_data["title"]
-                self.data[title] = self.data.pop("name")
+            if "audiobook_index" in self.data:
+                title = f"audiobook_{audiobook_count}"
+                self.data[title] = self.data.pop("audiobook_index")
                 self.data[title]["title"] = meta_data["title"]
                 self.data[title]["author"] = meta_data["author"]
             self.data[title]["duration"] += meta_data["duration"]
             self.data[title]["files"].append(dict(file=each_file,
                                                   duration=meta_data["duration"]))
-        self.save_data()
+        self.save_data(self.data)
         return self.data
 
     def get_meta_data(self, path: str) -> dict:
