@@ -27,17 +27,16 @@ class Audiobook():
     def read_data(self) -> dict:
         return JsonIO.read(self.path)
 
-    def delete_data(self, key: str) -> dict:
+    def delete_data(self, keys: dict) -> dict:
         json_data = JsonIO.read(self.path)
-        json_data.pop(key, None)
-        JsonIO().write(json_data, self.path)
-        return json_data
-    
-    def delete_file(self, keys: dict) -> None:
-        # TODO: not working
-        json_data = JsonIO.read(self.path)
-        print(json_data[keys["title"]]["file"])
-        json_data[keys["title"]]["file"].pop(keys["file"], None)
+        if keys["file"]:
+            # delete file
+            for e_file in json_data[keys["audiobook_key"]]["files"]:
+                if keys["file"] in e_file["file"]:
+                    json_data[keys["audiobook_key"]]["files"].remove(e_file)
+        else:
+            # delete audiobook
+            json_data.pop(keys["audiobook_key"], None)     
         JsonIO().write(json_data, self.path)
         return json_data
     
@@ -46,11 +45,11 @@ class Audiobook():
         audiobook_count = len(self.read_data())
         for each_path in paths:
             if QFileInfo(each_path.path()).isDir():
-                    dir = QDirIterator(each_path.path(), ["*.mp3"],
-                                              flags=QDirIterator.Subdirectories)
-                    while dir.hasNext():
-                        file = dir.next()
-                        files.append(file)
+                dir = QDirIterator(each_path.path(), ["*.mp3"],
+                                   flags=QDirIterator.Subdirectories)
+                while dir.hasNext():
+                    file = dir.next()
+                    files.append(file)
             else:
                 files.append(each_path.path())
         files.sort()

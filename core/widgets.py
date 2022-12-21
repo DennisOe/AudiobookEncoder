@@ -57,10 +57,13 @@ class TreeWidget(QTreeWidget):
                 if not each_item.text(0):
                     # delete parent items
                     root_item.removeChild(each_item)
-                    Audiobook().delete_data(each_item.user_inputs["title"].text())
+                    Audiobook().delete_data(dict(audiobook_key=each_item.audiobook_key,
+                                                 file=""))
                     continue
                 # delete child items
-                #each_item.parent().removeChild(each_item)
+                each_item.parent().removeChild(each_item)
+                Audiobook().delete_data(dict(audiobook_key=each_item.audiobook_key,
+                                             file=each_item.text(0)))
 
     def add_parent_item(self, audiobook_key: str) -> QTreeWidgetItem:
         parent_item = TreeWidgetItem(audiobook_key)
