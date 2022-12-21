@@ -3,7 +3,7 @@
 from PySide6.QtWidgets import (QWidget, QTreeWidget, QAbstractItemView, QTreeWidgetItem, 
                                QLabel, QPushButton, QLineEdit, QComboBox)
 from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QFileInfo
 from datetime import timedelta
 from audiobook import Audiobook
 
@@ -102,7 +102,7 @@ class TreeWidget(QTreeWidget):
             # add all files als children    
             for eFile in audiobook_data[e_audiobook]["files"]:
                 self.add_child_item(dict(parent=audiobook,
-                                         file=eFile["file"],
+                                         file=QFileInfo(eFile["file"]).fileName(),
                                          duration=eFile["duration"],
                                          audiobook_key=e_audiobook))
         # ??in extra function??
