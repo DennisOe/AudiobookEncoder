@@ -146,7 +146,8 @@ class TreeWidgetItem(QTreeWidgetItem):
                                             tip="",
                                             action="",
                                             audiobook_key=self.audiobook_key))
-        book_cover = BookCover(column0_style)
+        book_cover = BookCover(dict(parent=column0_style,
+                                    audiobook_key=self.audiobook_key))
         book_title = TextField(dict(name="Title",
                                     parent=column0_style,
                                     geometry=[110, 20, 270, 25],
@@ -243,9 +244,9 @@ class Label(QLabel):
 
 class BookCover(QLabel):
     """Costum QLabel to display artwork"""
-    def __init__(self, parent: QWidget) -> None:
+    def __init__(self, args: dict) -> None:
         super().__init__()
-        self.setParent(parent)
+        self.setParent(args["parent"])
         self.setVisible(True)
         self.setText("Drop <br> Cover")
         self.setToolTip("Double click to delete cover artwork.")
@@ -257,6 +258,7 @@ class BookCover(QLabel):
                                     color: grey;}")
         self.setAcceptDrops(True)
         self.cover = QPixmap()
+        self.args = args
         # Signal
     
     def dragEnterEvent(self, event):
@@ -272,7 +274,10 @@ class BookCover(QLabel):
                 self.cover.load(url.path())
                 self.setPixmap(self.cover.scaledToHeight(70))
                 event.acceptProposedAction()
-
+                audiobook_index = self.args["audiobook_key"]
+                data = Audiobook().read_data()
+                data[audiobook_index]["cover"] = url.path()
+                Audiobook().save_data(data)
         else:
             super().dropEvent(event)
 
