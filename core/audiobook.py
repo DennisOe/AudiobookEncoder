@@ -83,7 +83,7 @@ class Audiobook():
             meta_data.update({"duration": duration})
         return meta_data
 
-    def set_meta_data(self, path: str, tags: dict):
+    def set_meta_data(self, path: str, tags: dict) -> None:
         audio_file = mutagen.File(path, easy=True) # TODO
         # set metadata
         audio_file["title"] = tags["title"]
