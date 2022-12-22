@@ -84,7 +84,8 @@ class TreeWidget(QTreeWidget):
             for input in audiobook.user_inputs.keys():
                 if not input in audiobook_data[e_audiobook]:
                     continue
-                input_widget = audiobook.user_inputs[input] # TODO
+                input_widget: (TextField | BookCover |
+                               Label | ExportOptions | ToggleButton) = audiobook.user_inputs[input]
                 if isinstance(input_widget, TextField):
                     input_widget.setText(audiobook_data[e_audiobook][input])
                 elif isinstance(input_widget, BookCover):
