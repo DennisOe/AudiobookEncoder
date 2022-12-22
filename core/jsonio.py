@@ -14,5 +14,5 @@ class JsonIO:
     def read(path: str) -> dict:
         """Read json file."""
         with open(path) as json_file:
-            data = json.load(json_file)
+            data: dict = json.load(json_file)
             return data
