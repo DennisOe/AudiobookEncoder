@@ -31,7 +31,7 @@ class TreeWidget(QTreeWidget):
         # Signals
         #self.itemSelectionChanged.connect(self.changeWidgets)
         #self.itemDoubleClicked.connect(self.openFolder)
-    
+
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
@@ -51,19 +51,20 @@ class TreeWidget(QTreeWidget):
     def keyPressEvent(self, event):
         if (event.modifiers() == Qt.ControlModifier and
             event.key() == Qt.Key_Backspace):
-            # delete audiobooks or files
-            root_item: QTreeWidgetItem = self.invisibleRootItem()
-            for each_item in self.selectedItems():
-                if not each_item.text(0):
-                    # delete parent items
-                    root_item.removeChild(each_item)
+                # delete audiobooks or files
+                root_item: QTreeWidgetItem = self.invisibleRootItem()
+                for each_item in self.selectedItems():
+                    if not each_item.text(0):
+                        # delete parent items
+                        root_item.removeChild(each_item)
+                        Audiobook().delete_data(dict(audiobook_key=each_item.audiobook_key,
+                                                    file=""))
+                        continue
+                    # delete child items
+                    each_item.parent().removeChild(each_item)
                     Audiobook().delete_data(dict(audiobook_key=each_item.audiobook_key,
-                                                 file=""))
-                    continue
-                # delete child items
-                each_item.parent().removeChild(each_item)
-                Audiobook().delete_data(dict(audiobook_key=each_item.audiobook_key,
-                                             file=each_item.text(0)))
+                                                file=each_item.text(0)))
+                self.parent_item_counter_update()
 
     def add_parent_item(self, audiobook_key: str) -> QTreeWidgetItem:
         parent_item: TreeWidgetItem = TreeWidgetItem(audiobook_key)
@@ -99,18 +100,28 @@ class TreeWidget(QTreeWidget):
                     input_widget.setCurrentIndex(audiobook_data[e_audiobook][input])
                 elif isinstance(input_widget, ToggleButton):
                     input_widget.toggle_color("DarkGreen" if audiobook_data[e_audiobook][input]
-                                                         else "DarkRed")
+                                                          else "DarkRed")
+                    input_widget.args["state"] = True if audiobook_data[e_audiobook][input] else False
+                    input_widget.args["function"] = self.parent_item_counter_update
             # add all files als children    
             for eFile in audiobook_data[e_audiobook]["files"]:
                 self.add_child_item(dict(parent=audiobook,
                                          file=QFileInfo(eFile["file"]).fileName(),
                                          duration=eFile["duration"],
                                          audiobook_key=e_audiobook))
-        # ??in extra function??
-        if len(audiobook_data.keys()):
+        self.parent_item_counter_update()
+
+    def parent_item_counter_update(self) -> None:
+        root_item: QTreeWidgetItem = self.invisibleRootItem()
+        parent_item_count: int = root_item.childCount()
+        if not parent_item_count:
+            self.help_text.show()
+            self.setHeaderLabels(["Audiobook (0/0)", "Duration"])
+        else:
+            parent_item_active: int = len([root_item.child(i) for i in range(parent_item_count)
+                                                              if root_item.child(i).user_inputs["export"].args["state"]])
             self.help_text.hide()
-            self.setHeaderLabels([f"Audiobook (0/{len(audiobook_data.keys())})", "Duration"])
-        
+            self.setHeaderLabels([f"Audiobook ({parent_item_active}/{parent_item_count})", "Duration"])
 
 class TreeWidgetItem(QTreeWidgetItem):
     """Costum QTreeWidgetItem""" 
@@ -221,6 +232,8 @@ class ToggleButton(QPushButton):
                                          margin: 5px 5px 5px 0px;}")
         self.setToolTip(args["tip"])
         self.args: dict = args
+        self.args.update({"state": True,
+                          "function": None})
         # Signals
         self.clicked.connect(self.toggle)
 
@@ -234,7 +247,10 @@ class ToggleButton(QPushButton):
         toggle_state: bool = data[audiobook_index]["export"]
         data[audiobook_index]["export"] = False if toggle_state else True
         self.toggle_color("DarkRed" if toggle_state else "DarkGreen")
+        self.args["state"] = False if toggle_state else True
+        self.args["function"]()
         Audiobook().save_data(data)
+        
 
 
 class Label(QLabel):
