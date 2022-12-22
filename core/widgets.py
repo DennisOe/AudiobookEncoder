@@ -169,7 +169,8 @@ class TreeWidgetItem(QTreeWidgetItem):
                                                    "256 Kbps, Stereo, 48 kHz", 
                                                    "320 Kbps, Stereo, 48 kHz"],
                                           parent=column0_style,
-                                          geometry=[110, 55, 270, 25]))
+                                          geometry=[110, 55, 270, 25],
+                                          audiobook_key=self.audiobook_key))
         book_export = TextField(dict(name="Destination",
                                      parent=column0_style,
                                      geometry=[390, 55, 270, 25],
@@ -319,12 +320,12 @@ class ExportOptions(QComboBox):
         self.setStyleSheet("border-radius: 5px;\
                             border: 2px solid grey;\
                             background-color: DarkGray;")
+        self.args = args
         # Signals
+        self.currentIndexChanged.connect(self.index_changed)
 
-
-        
-
-        
-
-    
-
+    def index_changed(self):
+        audiobook_index = self.args["audiobook_key"]
+        data = Audiobook().read_data()
+        data[audiobook_index]["quality"] = self.currentIndex()
+        Audiobook().save_data(data) 
