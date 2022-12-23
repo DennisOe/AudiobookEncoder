@@ -28,21 +28,21 @@ class TreeWidget(QTreeWidget):
                                               qproperty-alignment: AlignCenter;\
                                               color: grey;}")
         self.create_tree(Audiobook().read_data())
-        self.invisibleRootItem().child(0).setSelected(True)
+        self.setCurrentItem(self.topLevelItem(0))
         # Signals
         #self.itemSelectionChanged.connect(self.changeWidgets)
         #self.itemDoubleClicked.connect(self.openFolder)
 
-    def dragEnterEvent(self, event):
+    def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
         else:
             super().dragEnterEvent(event)
 
-    def dragMoveEvent(self, event):
+    def dragMoveEvent(self, event) -> None:
         super().dragMoveEvent(event)
 
-    def dropEvent(self, event):
+    def dropEvent(self, event) -> None:
         if event.mimeData().hasUrls():
             data: dict = Audiobook().get_data(event.mimeData().urls())
             if not data:
@@ -51,7 +51,7 @@ class TreeWidget(QTreeWidget):
         else:
             super().dropEvent(event)
 
-    def keyPressEvent(self, event):
+    def keyPressEvent(self, event) -> None:
         if (event.modifiers() == Qt.ControlModifier and
             event.key() == Qt.Key_Backspace):
                 # delete audiobooks or files
@@ -59,8 +59,7 @@ class TreeWidget(QTreeWidget):
                     if not each_item.text(0):
                         # delete parent items
                         self.invisibleRootItem().removeChild(each_item)
-                        Audiobook().delete_data(dict(audiobook_key=each_item.audiobook_key,
-                                                    file=""))
+                        Audiobook().delete_data(dict(audiobook_key=each_item.audiobook_key))
                         continue
                     # delete child items
                     each_item.parent().removeChild(each_item)
@@ -69,22 +68,31 @@ class TreeWidget(QTreeWidget):
                 self.parent_item_counter_update()
 
         if event.key() == Qt.Key_Up:
+            # walk up the treewidget items
             if self.selectedItems():
+                if (not self.indexFromItem(self.selectedItems()[0]).row() and
+                    self.selectedItems()[0].childCount()):
+                        child_count: int = self.invisibleRootItem().childCount()
+                        # select last item
+                        self.setCurrentItem(self.topLevelItem(child_count-1))
+                        return
                 item_up: TreeWidgetItem = self.itemAbove(self.selectedItems()[0])
                 self.setCurrentItem(item_up)
-            else:
-                items_count: int = self.invisibleRootItem().childCount()
-                self.setCurrentItem(self.topLevelItem(items_count -1))
 
         if event.key() == Qt.Key_Down:
+            # walk down the treewidget items
             if self.selectedItems():
+                if (self.indexFromItem(self.selectedItems()[0]).row() == 2 and
+                    self.selectedItems()[0].childCount()):
+                        child_count: int = self.invisibleRootItem().childCount()
+                        # select first item
+                        self.setCurrentItem(self.topLevelItem(0))
+                        return
                 item_down: TreeWidgetItem = self.itemBelow(self.selectedItems()[0])
                 self.setCurrentItem(item_down)
-            else:
-                self.setCurrentItem(self.topLevelItem(0))
 
         if event.key() == Qt.Key_Right:
-            # open parent items
+            # expand parent items
             for each_item in self.selectedItems():
                 each_item.setExpanded(True)
 
@@ -110,7 +118,7 @@ class TreeWidget(QTreeWidget):
                 # select all parent items cmd+a
                 self.clearSelection()
                 for each_parent_item in range(self.invisibleRootItem().childCount()):
-                    self.invisibleRootItem().child(each_parent_item).setSelected(True)
+                    self.setCurrentItem(self.topLevelItem(each_parent_item))
 
         if event.key() == Qt.Key_Space:
             # play or pause file
@@ -144,6 +152,7 @@ class TreeWidget(QTreeWidget):
                         continue
                     input_widget.cover.load(audiobook_data[e_audiobook][input])
                     input_widget.setPixmap(input_widget.cover.scaledToHeight(70))
+                    input_widget.show_buttons(True)
                 elif isinstance(input_widget, Label):
                     input_widget.setText(str(timedelta(seconds=audiobook_data[e_audiobook][input])))
                 elif isinstance(input_widget, ExportOptions):
@@ -265,7 +274,7 @@ class PushButton(QPushButton):
         self.setText(args["name"])
         self.setToolTip(args["tip"])
         # Signals
-        #self.clicked.connec(args["action"])
+        self.clicked.connect(args["action"])
 
 
 class ToggleButton(QPushButton):
@@ -287,11 +296,11 @@ class ToggleButton(QPushButton):
         # Signals
         self.clicked.connect(self.toggle)
 
-    def toggle_color(self, color: str):
+    def toggle_color(self, color: str) -> None:
         replace_color: str = self.styleSheet().split("background-color: ")[1].split(";")[0]
         self.setStyleSheet(self.styleSheet().replace(replace_color, color))
 
-    def toggle(self):
+    def toggle(self) -> None:
         data: dict = Audiobook().read_data()
         audiobook_index: str = self.args["audiobook_key"]
         toggle_state: bool = data[audiobook_index]["export"]
@@ -319,35 +328,62 @@ class BookCover(QLabel):
         super().__init__()
         self.setParent(args["parent"])
         self.setVisible(True)
-        self.setText("Drop <br> Cover")
-        self.setToolTip("Double click to delete cover artwork.")
+        self.cover_text: str = "Drop <br> Cover"
+        self.setText(self.cover_text)
         self.setGeometry(20, 10, 80, 80)
         self.setStyleSheet("QLabel {border-radius: 10px;\
                                     border: 2px dashed grey;\
                                     font-size: 15px;\
                                     qproperty-alignment: AlignCenter;\
-                                    color: grey;}")
+                                    color: grey;}\
+                            PushButton {background-color: rgba(255, 255, 255, 0.4);\
+                                        color: DarkRed;\
+                                        font-weight: bold;\
+                                        border-radius: 10px;}")
         self.setAcceptDrops(True)
         self.cover: QPixmap = QPixmap()
+        self.delete_button: PushButton = PushButton(dict(parent=self,
+                                                         geometry=[60, 0, 20, 20],
+                                                         name="X",
+                                                         tip="Delete cover",
+                                                         action=self.delete_cover))
+        self.delete_button.setVisible(False)
+        self.resize_button: PushButton = PushButton(dict(parent=self,
+                                                         geometry=[60, 60, 20, 20],
+                                                         name="R",
+                                                         tip="Resize cover 1:1",
+                                                         action=""))
+        self.resize_button.setVisible(False)
         self.args: dict = args
         # Signal
 
-    def dragEnterEvent(self, event):
+    def show_buttons(self, state: bool) -> None:
+        self.delete_button.setVisible(state)
+        if self.cover.width() % self.cover.height():
+            self.resize_button.setVisible(state)
+
+    def delete_cover(self):
+        Audiobook().delete_data(dict(cover="Delete",
+                                     audiobook_key=self.args["audiobook_key"]))
+        self.show_buttons(False)
+        self.setText(self.cover_text)
+
+    def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
         else:
             super().dragEnterEvent(event)
 
-    def dropEvent(self, event):
+    def dropEvent(self, event) -> None:
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
-                # TODO everything will be converted to png and deleted
                 self.cover.load(url.path())
                 self.setPixmap(self.cover.scaledToHeight(70))
                 event.acceptProposedAction()
                 audiobook_index: str = self.args["audiobook_key"]
                 data: dict = Audiobook().read_data()
                 data[audiobook_index]["cover"] = url.path()
+                self.show_buttons(True)
                 Audiobook().save_data(data)
         else:
             super().dropEvent(event)
@@ -368,7 +404,7 @@ class TextField(QLineEdit):
         # Signals
         self.textEdited.connect(self.text_edited)
 
-    def text_edited(self):
+    def text_edited(self) -> None:
         data: dict = Audiobook().read_data()
         audiobook_index: str = self.args["audiobook_key"]
         audiobook_input: str = self.args["name"].lower()
@@ -391,7 +427,7 @@ class ExportOptions(QComboBox):
         # Signals
         self.currentIndexChanged.connect(self.index_changed)
 
-    def index_changed(self):
+    def index_changed(self) -> None:
         audiobook_index: str = self.args["audiobook_key"]
         data: dict = Audiobook().read_data()
         data[audiobook_index]["quality"] = self.currentIndex()
