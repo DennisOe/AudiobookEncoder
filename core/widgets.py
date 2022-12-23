@@ -28,6 +28,7 @@ class TreeWidget(QTreeWidget):
                                               qproperty-alignment: AlignCenter;\
                                               color: grey;}")
         self.create_tree(Audiobook().read_data())
+        self.invisibleRootItem().child(0).setSelected(True)
         # Signals
         #self.itemSelectionChanged.connect(self.changeWidgets)
         #self.itemDoubleClicked.connect(self.openFolder)
@@ -54,11 +55,10 @@ class TreeWidget(QTreeWidget):
         if (event.modifiers() == Qt.ControlModifier and
             event.key() == Qt.Key_Backspace):
                 # delete audiobooks or files
-                root_item: QTreeWidgetItem = self.invisibleRootItem()
                 for each_item in self.selectedItems():
                     if not each_item.text(0):
                         # delete parent items
-                        root_item.removeChild(each_item)
+                        self.invisibleRootItem().removeChild(each_item)
                         Audiobook().delete_data(dict(audiobook_key=each_item.audiobook_key,
                                                     file=""))
                         continue
@@ -67,6 +67,54 @@ class TreeWidget(QTreeWidget):
                     Audiobook().delete_data(dict(audiobook_key=each_item.audiobook_key,
                                                 file=each_item.text(0)))
                 self.parent_item_counter_update()
+
+        if event.key() == Qt.Key_Up:
+            if self.selectedItems():
+                item_up: TreeWidgetItem = self.itemAbove(self.selectedItems()[0])
+                self.setCurrentItem(item_up)
+            else:
+                items_count: int = self.invisibleRootItem().childCount()
+                self.setCurrentItem(self.topLevelItem(items_count -1))
+
+        if event.key() == Qt.Key_Down:
+            if self.selectedItems():
+                item_down: TreeWidgetItem = self.itemBelow(self.selectedItems()[0])
+                self.setCurrentItem(item_down)
+            else:
+                self.setCurrentItem(self.topLevelItem(0))
+
+        if event.key() == Qt.Key_Right:
+            # open parent items
+            for each_item in self.selectedItems():
+                each_item.setExpanded(True)
+
+        if event.key() == Qt.Key_Left:
+            # jump to root tree item and collapse items
+            selected_items: list[TreeWidgetItem] = self.selectedItems()
+            self.clearSelection()
+            items_to_collapse: list = []
+            for each_item in selected_items:
+                if each_item.text(0):
+                    # child item widgets
+                    items_to_collapse.append(each_item.parent())
+                else:
+                    # parent item widgets
+                    items_to_collapse.append(each_item)
+                    each_item.setExpanded(False)
+                # select parent item widgets
+                for each_item_collapse in items_to_collapse:
+                    each_item_collapse.setSelected(True)
+
+        if (event.modifiers() == Qt.ControlModifier and
+            event.key() == Qt.Key_A):
+                # select all parent items cmd+a
+                self.clearSelection()
+                for each_parent_item in range(self.invisibleRootItem().childCount()):
+                    self.invisibleRootItem().child(each_parent_item).setSelected(True)
+
+        if event.key() == Qt.Key_Space:
+            # play or pause file
+            pass
 
     def add_parent_item(self, audiobook_key: str) -> QTreeWidgetItem:
         parent_item: TreeWidgetItem = TreeWidgetItem(audiobook_key)
