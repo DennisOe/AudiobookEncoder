@@ -17,13 +17,13 @@ class Audiobook():
                                                "quality": 0,
                                                "files": [],
                                                "export": True,}}
-    
+
     def save_data(self, data: dict) -> dict:
         json_data: dict = JsonIO().read(self.path)
         json_data.update(data)
         JsonIO().write(json_data, self.path)
         return json_data
-    
+
     def read_data(self) -> dict:
         return JsonIO.read(self.path)
 
@@ -36,10 +36,10 @@ class Audiobook():
                     json_data[keys["audiobook_key"]]["files"].remove(e_file)
         else:
             # delete audiobook
-            json_data.pop(keys["audiobook_key"], None)     
+            json_data.pop(keys["audiobook_key"], None)
         JsonIO().write(json_data, self.path)
         return json_data
-    
+
     def get_data(self, paths: list[QUrl]) -> dict:
         files: list [str] = []
         audiobook_count: int = len(self.read_data())
@@ -56,7 +56,7 @@ class Audiobook():
         for each_file in files:
             if not each_file.lower().endswith(".mp3"):
                 continue
-            meta_data: dict = self.get_meta_data(each_file)                    
+            meta_data: dict = self.get_meta_data(each_file)
             if "audiobook_index" in self.data:
                 title: str = f"audiobook_{audiobook_count}"
                 self.data[title] = self.data.pop("audiobook_index")
@@ -96,9 +96,9 @@ class Audiobook():
         audio_file: MP4 = MP4(path)
         cover_file = open(tags["cover"], "rb").read() # TODO
         audio_file.tags["covr"] = [MP4Cover(cover_file, MP4Cover.FORMAT_PNG)]
-        audio_file.save() 
+        audio_file.save()
 
 
-        
+
 
 #Audiobook().get_meta_data("/Users/dennisoesterle/Desktop/test.mp3")
