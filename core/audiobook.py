@@ -29,11 +29,15 @@ class Audiobook():
 
     def delete_data(self, keys: dict[str, str]) -> dict:
         json_data: dict = JsonIO.read(self.path)
-        if keys["file"]:
+        if "file" in keys:
+            if not keys["file"]:
+                return
             # delete file
             for e_file in json_data[keys["audiobook_key"]]["files"]:
                 if keys["file"] in e_file["file"]:
                     json_data[keys["audiobook_key"]]["files"].remove(e_file)
+        elif "cover" in keys:
+            json_data[keys["audiobook_key"]]["cover"] = ""
         else:
             # delete audiobook
             json_data.pop(keys["audiobook_key"], None)
