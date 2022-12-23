@@ -44,6 +44,7 @@ class Audiobook():
         files: list [str] = []
         audiobook_count: int = len(self.read_data())
         for each_path in paths:
+            # folders
             if QFileInfo(each_path.path()).isDir():
                 dir: QDirIterator = QDirIterator(each_path.path(), ["*.mp3"],
                                                  flags=QDirIterator.Subdirectories)
@@ -51,11 +52,15 @@ class Audiobook():
                     file: str = dir.next()
                     files.append(file)
             else:
+                # files
+                if not each_path.path().lower().endswith(".mp3"):
+                    continue
                 files.append(each_path.path())
         files.sort()
+        if not files:
+            return {}
+        # add meta data to json
         for each_file in files:
-            if not each_file.lower().endswith(".mp3"):
-                continue
             meta_data: dict = self.get_meta_data(each_file)
             if "audiobook_index" in self.data:
                 title: str = f"audiobook_{audiobook_count}"
@@ -70,8 +75,6 @@ class Audiobook():
 
     def get_meta_data(self, path: str) -> dict:
         audio_file = mutagen.File(path)
-        title: str = ""
-        author: str = ""
         meta_data: dict = {}
         for key, e_tag in [["title", "TALB"], ["author", "TPE1"]]:
             if not e_tag in audio_file:

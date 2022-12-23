@@ -44,6 +44,8 @@ class TreeWidget(QTreeWidget):
     def dropEvent(self, event):
         if event.mimeData().hasUrls():
             data: dict = Audiobook().get_data(event.mimeData().urls())
+            if not data:
+                return
             self.create_tree(data)
         else:
             super().dropEvent(event)
