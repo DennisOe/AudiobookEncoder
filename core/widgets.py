@@ -1,9 +1,9 @@
 # holds costum ui widgets
 
 from PySide6.QtWidgets import (QWidget, QTreeWidget, QAbstractItemView, QTreeWidgetItem,
-                               QLabel, QPushButton, QLineEdit, QComboBox)
+                               QLabel, QPushButton, QLineEdit, QComboBox, QFileDialog)
 from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt, QSize, QFileInfo
+from PySide6.QtCore import Qt, QSize, QFileInfo, QDir
 from datetime import timedelta
 from audiobook import Audiobook
 
@@ -125,13 +125,14 @@ class TreeWidget(QTreeWidget):
             pass
 
     def add_parent_item(self, audiobook_key: str) -> QTreeWidgetItem:
-        parent_item: TreeWidgetItem = TreeWidgetItem(audiobook_key)
-        parent_item.add_user_inputs(parent=self)
+        parent_item: TreeWidgetItem = TreeWidgetItem(dict(audiobook_key=audiobook_key,
+                                                          parent=self))
+        parent_item.add_user_inputs()
         parent_item.setSizeHint(0, QSize(100, 100))
         return parent_item
 
     def add_child_item(self, args: dict) -> None:
-        child_item: TreeWidgetItem = TreeWidgetItem(args["audiobook_key"])
+        child_item: TreeWidgetItem = TreeWidgetItem(dict(audiobook_key=args["audiobook_key"]))
         args["parent"].addChild(child_item)
         child_item.set_text(args)
 
@@ -182,22 +183,23 @@ class TreeWidget(QTreeWidget):
             self.help_text.hide()
             self.setHeaderLabels([f"Audiobook ({parent_item_active}/{parent_item_count})", "Duration"])
 
+
 class TreeWidgetItem(QTreeWidgetItem):
     """Costum QTreeWidgetItem"""
-    def __init__(self, audiobook_key: str) -> None:
+    def __init__(self, args: dict) -> None:
         super().__init__()
         self.setFlags(Qt.ItemIsEnabled |
                       Qt.ItemIsSelectable |
                       Qt.ItemIsDropEnabled)
         self.user_inputs: dict = {}
-        self.audiobook_key: str = audiobook_key
+        self.args: dict = args
 
     def set_text(self, args: dict) -> None:
         self.setText(0, args["file"])
         self.setText(1, str(timedelta(seconds=round(args["duration"]))))
 
-    def add_user_inputs(self, parent: QTreeWidget) -> None:
-        parent.addTopLevelItem(self)
+    def add_user_inputs(self) -> None:
+        self.args["parent"].addTopLevelItem(self)
         # qwidget sets scale and style for column 0 & 1
         column0_style: QWidget = QWidget()
         column0_style.setObjectName("c0")
@@ -205,52 +207,54 @@ class TreeWidgetItem(QTreeWidgetItem):
                                                  border-top-left-radius: 10px;\
                                                  border-bottom-left-radius: 10px;\
                                                  margin: 5px 0px 5px 0px;}")
-        parent.setItemWidget(self, 0, column0_style)
+        self.args["parent"].setItemWidget(self, 0, column0_style)
         column1_style: QWidget = QWidget()
         column1_style.setObjectName("c1")
         column1_style.setStyleSheet("QWidget#c1 {background-color: DarkGray;\
                                                  border-top-right-radius: 10px;\
                                                  border-bottom-right-radius: 10px;\
                                                  margin: 5px 5px 5px 0px;}")
-        parent.setItemWidget(self, 1, column1_style)
+        self.args["parent"].setItemWidget(self, 1, column1_style)
         # audiobook editing widgets
         activate_export: ToggleButton = ToggleButton(dict(name="",
                                                           parent=column0_style,
                                                           geometry=[0, 0, 20, 100],
                                                           tip="",
                                                           action="",
-                                                          audiobook_key=self.audiobook_key))
+                                                          audiobook_key=self.args["audiobook_key"]))
         book_cover: BookCover = BookCover(dict(parent=column0_style,
-                                               audiobook_key=self.audiobook_key))
+                                               audiobook_key=self.args["audiobook_key"]))
         book_title: TextField = TextField(dict(name="Title",
                                                parent=column0_style,
                                                geometry=[110, 20, 270, 25],
-                                               audiobook_key=self.audiobook_key))
+                                               audiobook_key=self.args["audiobook_key"]))
         book_author: TextField = TextField(dict(name="Author",
                                                 parent=column0_style,
                                                 geometry=[390, 20, 270, 25],
-                                                audiobook_key=self.audiobook_key))
+                                                audiobook_key=self.args["audiobook_key"]))
         book_presets: PushButton = PushButton(dict(name="P",
                                                   parent=column0_style,
                                                   geometry=[630, 17, 25, 30],
                                                   tip="",
-                                                  action=""))
+                                                  action="set_author_preset",
+                                                  user_inputs=dict()))
         book_quality: ExportOptions = ExportOptions(dict(options=["96 Kbps, Stereo, 48 kHz",
                                                                   "128 Kbps, Stereo, 48 kHz",
                                                                   "256 Kbps, Stereo, 48 kHz",
                                                                   "320 Kbps, Stereo, 48 kHz"],
                                                          parent=column0_style,
                                                          geometry=[110, 55, 270, 25],
-                                                         audiobook_key=self.audiobook_key))
+                                                         audiobook_key=self.args["audiobook_key"]))
         book_export: TextField = TextField(dict(name="Destination",
                                                 parent=column0_style,
                                                 geometry=[390, 55, 270, 25],
-                                                audiobook_key=self.audiobook_key))
+                                                audiobook_key=self.args["audiobook_key"]))
         file_browser: PushButton = PushButton(dict(name="F",
                                                    parent=column0_style,
                                                    geometry=[630, 53, 25, 30],
                                                    tip="",
-                                                   action=""))
+                                                   action="file_dialog",
+                                                   user_inputs=dict(destination=book_export)))
         book_duration: Label = Label(dict(text="Duration",
                                           parent=column1_style,
                                           geometry=[4, 40, 100, 20]))
@@ -262,6 +266,7 @@ class TreeWidgetItem(QTreeWidgetItem):
                                  "quality": book_quality,
                                  "duration": book_duration,
                                  "destination": book_export})
+        book_presets.args["user_inputs"] = self.user_inputs
 
 
 class PushButton(QPushButton):
@@ -273,8 +278,28 @@ class PushButton(QPushButton):
         self.setGeometry(*args["geometry"])
         self.setText(args["name"])
         self.setToolTip(args["tip"])
+        self.args: dict = args
         # Signals
+        if isinstance(args["action"], str):
+            if args["action"] == "file_dialog":
+                args["action"] = self.file_dialog
+            elif args["action"] == "set_author_preset":
+                args["action"] = self.set_author_preset
+            else:
+                args["action"] = self.empty
         self.clicked.connect(args["action"])
+
+    def empty(self):
+        # empty signal function to avoid errors
+        pass
+
+    def file_dialog(self):
+        main_window: QWidget = self.parent()
+        filepath = QFileDialog.getExistingDirectory(main_window, "Export destination...", QDir.homePath())
+        self.args["user_inputs"]["destination"].setText(filepath)
+
+    def set_author_preset(self):
+        pass
 
 
 class ToggleButton(QPushButton):
@@ -402,7 +427,7 @@ class TextField(QLineEdit):
                             background-color: DarkGray;")
         self.args: dict = args
         # Signals
-        self.textEdited.connect(self.text_edited)
+        self.textChanged.connect(self.text_edited)
 
     def text_edited(self) -> None:
         data: dict = Audiobook().read_data()
