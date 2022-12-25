@@ -85,9 +85,7 @@ class Audiobook():
                 meta_data.update({key: ""})
                 continue
             meta_data.update({key: " ".join(audio_file[e_tag].text)})
-        else:
-            duration: float = round(audio_file.info.length)
-            meta_data.update({"duration": duration})
+        meta_data.update({"duration": round(audio_file.info.length)})
         return meta_data
 
     def set_meta_data(self, path: str, tags: dict) -> None:
