@@ -59,11 +59,11 @@ class TreeWidget(QTreeWidget):
                     if not each_item.text(0):
                         # delete parent items
                         self.invisibleRootItem().removeChild(each_item)
-                        Audiobook().delete_data(dict(audiobook_key=each_item.audiobook_key))
+                        Audiobook().delete_data(dict(audiobook_key=each_item.args["audiobook_key"]))
                         continue
                     # delete child items
                     each_item.parent().removeChild(each_item)
-                    Audiobook().delete_data(dict(audiobook_key=each_item.audiobook_key,
+                    Audiobook().delete_data(dict(audiobook_key=each_item.args["audiobook_key"],
                                                 file=each_item.text(0)))
                 self.parent_item_counter_update()
 
@@ -377,7 +377,7 @@ class BookCover(QLabel):
                                                          geometry=[60, 60, 20, 20],
                                                          name="R",
                                                          tip="Resize cover 1:1",
-                                                         action=""))
+                                                         action=self.resize_cover))
         self.resize_button.setVisible(False)
         self.args: dict = args
         # Signal
@@ -392,6 +392,11 @@ class BookCover(QLabel):
                                      audiobook_key=self.args["audiobook_key"]))
         self.show_buttons(False)
         self.setText(self.cover_text)
+
+    def resize_cover(self):
+        path: str = Audiobook().resize_cover(self.args["audiobook_key"])
+        self.cover.load(path)
+        self.setPixmap(self.cover.scaledToHeight(70))
 
     def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls():
