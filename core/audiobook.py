@@ -1,7 +1,8 @@
 # holds all scripts for editing audiobooks
 import mutagen
 from mutagen.mp4 import MP4, MP4Cover
-from PySide6.QtCore import QUrl, QFileInfo, QDirIterator
+from PySide6.QtCore import QUrl, QSize, QFileInfo, QDirIterator
+from PySide6.QtGui import QImage
 from jsonio  import JsonIO
 
 
@@ -71,6 +72,10 @@ class Audiobook():
                 self.data[title] = self.data.pop("audiobook_index")
                 self.data[title]["title"] = meta_data["title"]
                 self.data[title]["author"] = meta_data["author"]
+                # cover
+                meta_cover = self.get_meta_cover(each_file, title)
+                if meta_cover:
+                    self.data[title]["cover"] = meta_cover
             self.data[title]["duration"] += meta_data["duration"]
             self.data[title]["files"].append(dict(file=each_file,
                                                   duration=meta_data["duration"]))
@@ -88,6 +93,30 @@ class Audiobook():
         meta_data.update({"duration": round(audio_file.info.length)})
         return meta_data
 
+    def get_meta_cover(self, path: str, audiobook_key: str) -> str:
+        audio_file = mutagen.File(path)
+        if not "APIC:cover" in audio_file:
+            return ""
+        tag_cover: bytes = audio_file["APIC:cover"].data
+        cover: QImage = QImage()
+        cover.loadFromData(tag_cover)
+        export_path: str = QFileInfo(path).path() + f"/{audiobook_key}_COVER.png"
+        cover.save(export_path)
+        return export_path
+
+    def resize_cover(self, audiobook_key: str):
+        data: dict = self.read_data()
+        path = data[audiobook_key]["cover"]
+        cover: QImage = QImage()
+        cover.load(path)
+        if cover.width() > cover.height():
+            size: QSize = QSize(cover.width(), cover.width())
+        else:
+            size: QSize = QSize(cover.height(), cover.height())
+        cover = cover.scaled(size)
+        cover.save(path)
+        return path
+
     def set_meta_data(self, path: str, tags: dict) -> None:
         audio_file = mutagen.File(path, easy=True) # TODO
         # set metadata
@@ -102,8 +131,3 @@ class Audiobook():
         cover_file = open(tags["cover"], "rb").read() # TODO
         audio_file.tags["covr"] = [MP4Cover(cover_file, MP4Cover.FORMAT_PNG)]
         audio_file.save()
-
-
-
-
-#Audiobook().get_meta_data("/Users/dennisoesterle/Desktop/test.mp3")
