@@ -95,16 +95,17 @@ class Audiobook():
 
     def get_meta_cover(self, path: str, audiobook_key: str) -> str:
         audio_file = mutagen.File(path)
-        if not "APIC:cover" in audio_file:
+        cover_key = [key for key in audio_file if "APIC:" in key.upper()]
+        if not cover_key:
             return ""
-        tag_cover: bytes = audio_file["APIC:cover"].data
+        tag_cover: bytes = audio_file[cover_key[0]].data
         cover: QImage = QImage()
         cover.loadFromData(tag_cover)
         export_path: str = QFileInfo(path).path() + f"/{audiobook_key}_COVER.png"
         cover.save(export_path)
         return export_path
 
-    def resize_cover(self, audiobook_key: str):
+    def resize_cover(self, audiobook_key: str) -> str:
         data: dict = self.read_data()
         path = data[audiobook_key]["cover"]
         cover: QImage = QImage()
