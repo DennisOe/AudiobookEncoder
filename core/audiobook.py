@@ -1,8 +1,8 @@
-# holds all scripts for editing audiobooks
 import mutagen
 from mutagen.mp4 import MP4, MP4Cover
 from PySide6.QtCore import QUrl, QSize, QFileInfo, QDirIterator
 from PySide6.QtGui import QImage
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from jsonio  import JsonIO
 
 
@@ -95,7 +95,7 @@ class Audiobook():
 
     def get_meta_cover(self, path: str, audiobook_key: str) -> str:
         audio_file = mutagen.File(path)
-        cover_key = [key for key in audio_file if "APIC:" in key.upper()]
+        cover_key: list[str] = [key for key in audio_file if "APIC:" in key.upper()]
         if not cover_key:
             return ""
         tag_cover: bytes = audio_file[cover_key[0]].data
@@ -107,7 +107,7 @@ class Audiobook():
 
     def resize_cover(self, audiobook_key: str) -> str:
         data: dict = self.read_data()
-        path = data[audiobook_key]["cover"]
+        path: str = data[audiobook_key]["cover"]
         cover: QImage = QImage()
         cover.load(path)
         if cover.width() > cover.height():
@@ -132,3 +132,30 @@ class Audiobook():
         cover_file = open(tags["cover"], "rb").read() # TODO
         audio_file.tags["covr"] = [MP4Cover(cover_file, MP4Cover.FORMAT_PNG)]
         audio_file.save()
+
+
+class AudioPlayer(QMediaPlayer):
+    def __init__(self, parent) -> None:
+        super().__init__()
+        self.setParent(parent)
+        self.audio_output: QAudioOutput = QAudioOutput(parent)
+        self.setAudioOutput(self.audio_output)
+
+    def play_audio(self, path: str) -> None:
+        if not self.validate_file(path):
+            return
+        if self.playbackState() == QMediaPlayer.StoppedState:
+            self.setSource(QUrl.fromLocalFile(path))
+            self.play()
+        elif path not in self.source().path():
+            # switch file without stopping
+            self.setSource(QUrl.fromLocalFile(path))
+            self.play()
+        else:
+            self.stop()
+
+    def validate_file(self, path: str) -> bool:
+        if (not path.endswith(".mp3") or
+           not QFileInfo(path).exists()):
+            return False
+        return True

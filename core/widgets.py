@@ -1,11 +1,9 @@
-# holds costum ui widgets
-
 from PySide6.QtWidgets import (QWidget, QTreeWidget, QAbstractItemView, QTreeWidgetItem,
                                QLabel, QPushButton, QLineEdit, QComboBox, QFileDialog)
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, QSize, QFileInfo, QDir
 from datetime import timedelta
-from audiobook import Audiobook
+from audiobook import Audiobook, AudioPlayer
 
 
 class TreeWidget(QTreeWidget):
@@ -29,6 +27,7 @@ class TreeWidget(QTreeWidget):
                                               color: grey;}")
         self.create_tree(Audiobook().read_data())
         self.setCurrentItem(self.topLevelItem(0))
+        self.audio_player: AudioPlayer = AudioPlayer(self)
         # Signals
         #self.itemSelectionChanged.connect(self.changeWidgets)
         #self.itemDoubleClicked.connect(self.openFolder)
@@ -121,8 +120,11 @@ class TreeWidget(QTreeWidget):
                     self.setCurrentItem(self.topLevelItem(each_parent_item))
 
         if event.key() == Qt.Key_Space:
-            # play or pause file
-            pass
+            # play or stop file playback
+            selected_items: list[TreeWidgetItem] = self.selectedItems()
+            if not selected_items:
+                return
+            self.audio_player.play_audio(selected_items[0].args["file"])
 
     def add_parent_item(self, audiobook_key: str) -> QTreeWidgetItem:
         parent_item: TreeWidgetItem = TreeWidgetItem(dict(audiobook_key=audiobook_key,
@@ -132,7 +134,7 @@ class TreeWidget(QTreeWidget):
         return parent_item
 
     def add_child_item(self, args: dict) -> None:
-        child_item: TreeWidgetItem = TreeWidgetItem(dict(audiobook_key=args["audiobook_key"]))
+        child_item: TreeWidgetItem = TreeWidgetItem(args)
         args["parent"].addChild(child_item)
         child_item.set_text(args)
 
@@ -163,10 +165,10 @@ class TreeWidget(QTreeWidget):
                                                           else "DarkRed")
                     input_widget.args["state"] = True if audiobook_data[e_audiobook][input] else False
                     input_widget.args["function"] = self.parent_item_counter_update
-            # add all files als children
+            # add all files as children
             for eFile in audiobook_data[e_audiobook]["files"]:
                 self.add_child_item(dict(parent=audiobook,
-                                         file=QFileInfo(eFile["file"]).fileName(),
+                                         file=eFile["file"],
                                          duration=eFile["duration"],
                                          audiobook_key=e_audiobook))
         self.parent_item_counter_update()
@@ -195,7 +197,7 @@ class TreeWidgetItem(QTreeWidgetItem):
         self.args: dict = args
 
     def set_text(self, args: dict) -> None:
-        self.setText(0, args["file"])
+        self.setText(0, QFileInfo(args["file"]).fileName())
         self.setText(1, str(timedelta(seconds=round(args["duration"]))))
 
     def add_user_inputs(self) -> None:
