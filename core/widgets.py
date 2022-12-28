@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QWidget, QTreeWidget, QAbstractItemView, QTreeWidgetItem,
                                QLabel, QPushButton, QLineEdit, QComboBox, QFileDialog)
 from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt, QSize, QFileInfo, QDir
+from PySide6.QtCore import Qt, QSize, QFileInfo, QStandardPaths
 from datetime import timedelta
 from audiobook import Audiobook, AudioPlayer
 
@@ -28,6 +28,7 @@ class TreeWidget(QTreeWidget):
         self.create_tree(Audiobook().read_data())
         self.setCurrentItem(self.topLevelItem(0))
         self.audio_player: AudioPlayer = AudioPlayer(self)
+        self.last_played_item: TreeWidgetItem | bool = False
         # Signals
         #self.itemSelectionChanged.connect(self.changeWidgets)
         #self.itemDoubleClicked.connect(self.openFolder)
@@ -122,9 +123,18 @@ class TreeWidget(QTreeWidget):
         if event.key() == Qt.Key_Space:
             # play or stop file playback
             selected_items: list[TreeWidgetItem] = self.selectedItems()
-            if not selected_items:
+            if not selected_items or not "file" in selected_items[0].args:
                 return
             self.audio_player.play_audio(selected_items[0].args["file"])
+            # clean play indicator ui styling
+            if self.last_played_item:
+                revert_text: str = self.last_played_item.text(0).replace("\N{Black Right-Pointing Triangle} ", "")
+                self.last_played_item.setText(0, revert_text)
+            # set play indicator ui styling
+            if self.audio_player.playing_state:
+                text = f"\N{Black Right-Pointing Triangle} {selected_items[0].text(0)}"
+                selected_items[0].setText(0, text)
+                self.last_played_item = selected_items[0]
 
     def add_parent_item(self, audiobook_key: str) -> QTreeWidgetItem:
         parent_item: TreeWidgetItem = TreeWidgetItem(dict(audiobook_key=audiobook_key,
@@ -234,12 +244,12 @@ class TreeWidgetItem(QTreeWidgetItem):
                                                 parent=column0_style,
                                                 geometry=[390, 20, 270, 25],
                                                 audiobook_key=self.args["audiobook_key"]))
-        book_presets: PushButton = PushButton(dict(name="P",
-                                                  parent=column0_style,
-                                                  geometry=[630, 17, 25, 30],
-                                                  tip="",
-                                                  action="set_author_preset",
-                                                  user_inputs=dict()))
+        book_presets: PushButton = PushButton(dict(name="\N{BLACK STAR}",
+                                                   parent=column0_style,
+                                                   geometry=[665, 17, 25, 30],
+                                                   tip="",
+                                                   action="set_author_preset",
+                                                   user_inputs=dict()))
         book_quality: ExportOptions = ExportOptions(dict(options=["96 Kbps, Stereo, 48 kHz",
                                                                   "128 Kbps, Stereo, 48 kHz",
                                                                   "256 Kbps, Stereo, 48 kHz",
@@ -251,9 +261,9 @@ class TreeWidgetItem(QTreeWidgetItem):
                                                 parent=column0_style,
                                                 geometry=[390, 55, 270, 25],
                                                 audiobook_key=self.args["audiobook_key"]))
-        file_browser: PushButton = PushButton(dict(name="F",
+        file_browser: PushButton = PushButton(dict(name="\N{LOWER SEVEN EIGHTHS BLOCK}",
                                                    parent=column0_style,
-                                                   geometry=[630, 53, 25, 30],
+                                                   geometry=[665, 53, 25, 30],
                                                    tip="",
                                                    action="file_dialog",
                                                    user_inputs=dict(destination=book_export)))
@@ -297,8 +307,14 @@ class PushButton(QPushButton):
 
     def file_dialog(self):
         main_window: QWidget = self.parent()
-        filepath = QFileDialog.getExistingDirectory(main_window, "Export destination...", QDir.homePath())
-        self.args["user_inputs"]["destination"].setText(filepath)
+        if self.args["user_inputs"]["destination"].text():
+            open_path: str = self.args["user_inputs"]["destination"].text()
+        else:
+            open_path: str = QStandardPaths.standardLocations(QStandardPaths.DesktopLocation)[0]
+        export_path: str = QFileDialog.getExistingDirectory(main_window, "Export destination...", open_path)
+        if not export_path:
+            export_path = open_path
+        self.args["user_inputs"]["destination"].setText(export_path)
 
     def set_author_preset(self):
         pass
@@ -363,21 +379,20 @@ class BookCover(QLabel):
                                     font-size: 15px;\
                                     qproperty-alignment: AlignCenter;\
                                     color: grey;}\
-                            PushButton {background-color: rgba(255, 255, 255, 0.4);\
-                                        color: DarkRed;\
+                            PushButton {background-color: rgba(255, 255, 255, 0);\
                                         font-weight: bold;\
                                         border-radius: 10px;}")
         self.setAcceptDrops(True)
         self.cover: QPixmap = QPixmap()
         self.delete_button: PushButton = PushButton(dict(parent=self,
                                                          geometry=[60, 0, 20, 20],
-                                                         name="X",
+                                                         name="\N{HEAVY MULTIPLICATION X}",
                                                          tip="Delete cover",
                                                          action=self.delete_cover))
         self.delete_button.setVisible(False)
         self.resize_button: PushButton = PushButton(dict(parent=self,
                                                          geometry=[60, 60, 20, 20],
-                                                         name="R",
+                                                         name="\N{WARNING SIGN}",
                                                          tip="Resize cover 1:1",
                                                          action=self.resize_cover))
         self.resize_button.setVisible(False)

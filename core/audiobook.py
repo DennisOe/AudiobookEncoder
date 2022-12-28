@@ -1,6 +1,6 @@
 import mutagen
 from mutagen.mp4 import MP4, MP4Cover
-from PySide6.QtCore import QUrl, QSize, QFileInfo, QDirIterator
+from PySide6.QtCore import QUrl, QSize, QFileInfo, QDirIterator, QStandardPaths
 from PySide6.QtGui import QImage
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from jsonio  import JsonIO
@@ -8,28 +8,29 @@ from jsonio  import JsonIO
 
 class Audiobook():
     def __init__(self):
-        self.path: str = "AudiobookEncoder/core/audiobooks.json"
+        self.audiobook_json_path: str = "AudiobookEncoder/core/audiobooks.json"
+        self.desktop_path: str = QStandardPaths.standardLocations(QStandardPaths.DesktopLocation)[0]
         self.data: dict = {"audiobook_index": {"title": "",
                                                "author": "",
                                                "genre": "Audiobook",
                                                "cover": "",
                                                "duration": 0,
-                                               "destination": "",
+                                               "destination": self.desktop_path,
                                                "quality": 0,
                                                "files": [],
                                                "export": True,}}
 
     def save_data(self, data: dict) -> dict:
-        json_data: dict = JsonIO().read(self.path)
+        json_data: dict = JsonIO().read(self.audiobook_json_path)
         json_data.update(data)
-        JsonIO().write(json_data, self.path)
+        JsonIO().write(json_data, self.audiobook_json_path)
         return json_data
 
     def read_data(self) -> dict:
-        return JsonIO.read(self.path)
+        return JsonIO.read(self.audiobook_json_path)
 
     def delete_data(self, keys: dict[str, str]) -> dict:
-        json_data: dict = JsonIO.read(self.path)
+        json_data: dict = JsonIO.read(self.audiobook_json_path)
         if "file" in keys:
             if not keys["file"]:
                 return
@@ -42,7 +43,7 @@ class Audiobook():
         else:
             # delete audiobook
             json_data.pop(keys["audiobook_key"], None)
-        JsonIO().write(json_data, self.path)
+        JsonIO().write(json_data, self.audiobook_json_path)
         return json_data
 
     def get_data(self, paths: list[QUrl]) -> dict:
@@ -140,6 +141,7 @@ class AudioPlayer(QMediaPlayer):
         self.setParent(parent)
         self.audio_output: QAudioOutput = QAudioOutput(parent)
         self.setAudioOutput(self.audio_output)
+        self.playing_state: bool = False
 
     def play_audio(self, path: str) -> None:
         if not self.validate_file(path):
@@ -147,12 +149,15 @@ class AudioPlayer(QMediaPlayer):
         if self.playbackState() == QMediaPlayer.StoppedState:
             self.setSource(QUrl.fromLocalFile(path))
             self.play()
+            self.playing_state = True
         elif path not in self.source().path():
             # switch file without stopping
             self.setSource(QUrl.fromLocalFile(path))
             self.play()
+            self.playing_state = True
         else:
             self.stop()
+            self.playing_state = False
 
     def validate_file(self, path: str) -> bool:
         if (not path.endswith(".mp3") or
