@@ -16,15 +16,13 @@ class Audiobook():
                                                "cover": "",
                                                "duration": 0,
                                                "destination": self.desktop_path,
-                                               "quality": 0,
+                                               "quality": 1,
                                                "files": [],
                                                "export": True,}}
 
     def save_data(self, data: dict) -> dict:
-        json_data: dict = JsonIO().read(self.audiobook_json_path)
-        json_data.update(data)
-        JsonIO().write(json_data, self.audiobook_json_path)
-        return json_data
+        JsonIO().write(data, self.audiobook_json_path)
+        return data
 
     def read_data(self) -> dict:
         return JsonIO.read(self.audiobook_json_path)
@@ -43,12 +41,13 @@ class Audiobook():
         else:
             # delete audiobook
             json_data.pop(keys["audiobook_key"], None)
-        JsonIO().write(json_data, self.audiobook_json_path)
+        self.save_data(json_data)
         return json_data
 
     def get_data(self, paths: list[QUrl]) -> dict:
         files: list [str] = []
-        audiobook_count: int = len(self.read_data())
+        json_data: dict = self.read_data()
+        audiobook_count: int = len(json_data)
         for each_path in paths:
             # folders
             if QFileInfo(each_path.path()).isDir():
@@ -80,7 +79,8 @@ class Audiobook():
             self.data[title]["duration"] += meta_data["duration"]
             self.data[title]["files"].append(dict(file=each_file,
                                                   duration=meta_data["duration"]))
-        self.save_data(self.data)
+        json_data.update(self.data)
+        self.save_data(json_data)
         return self.data
 
     def get_meta_data(self, path: str) -> dict:
