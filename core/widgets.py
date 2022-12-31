@@ -414,6 +414,7 @@ class BookCover(QLabel):
         path: str = Audiobook().resize_cover(self.args["audiobook_key"])
         self.cover.load(path)
         self.setPixmap(self.cover.scaledToHeight(70))
+        self.show_buttons(True)
 
     def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls():
