@@ -1,9 +1,10 @@
 from PySide6.QtWidgets import (QWidget, QTreeWidget, QAbstractItemView, QTreeWidgetItem,
-                               QLabel, QPushButton, QLineEdit, QComboBox, QFileDialog)
+                               QLabel, QPushButton, QLineEdit, QComboBox, QFileDialog,
+                               QMenu)
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, QSize, QFileInfo, QStandardPaths
 from datetime import timedelta
-from audiobook import Audiobook, AudioPlayer
+from audiobook import Audiobook, Preset, AudioPlayer
 
 
 class TreeWidget(QTreeWidget):
@@ -291,12 +292,17 @@ class PushButton(QPushButton):
         self.setText(args["name"])
         self.setToolTip(args["tip"])
         self.args: dict = args
+        self.popMenu: QMenu
         # Signals
         if isinstance(args["action"], str):
             if args["action"] == "file_dialog":
                 args["action"] = self.file_dialog
             elif args["action"] == "set_author_preset":
-                args["action"] = self.set_author_preset
+                args["action"] = self.empty
+                self.author_menu = QMenu()
+                self.setMenu(self.author_menu)
+                self.author_menu.aboutToShow.connect(self.create_author_preset_menu)
+                self.setStyleSheet("QPushButton::menu-indicator {width: 0px;}")
             else:
                 args["action"] = self.empty
         self.clicked.connect(args["action"])
@@ -316,8 +322,19 @@ class PushButton(QPushButton):
             export_path = open_path
         self.args["user_inputs"]["destination"].setText(export_path)
 
-    def set_author_preset(self):
-        pass
+    def create_author_preset_menu(self):
+        """create preset item menu"""
+        self.author_menu.clear()
+        self.author_menu.addAction("Save", self.save_author_preset)
+        self.author_menu.addSeparator()
+        for each_preset in sorted(Preset().read_data()):
+            self.author_menu.addAction(each_preset)
+
+    def save_author_preset(self):
+        Preset().get_data(dict(author=self.args["user_inputs"]["author"].text(),
+                               destination=self.args["user_inputs"]["destination"].text(),
+                               quality=self.args["user_inputs"]["quality"].currentIndex()))
+        self.create_author_preset_menu()
 
 
 class ToggleButton(QPushButton):

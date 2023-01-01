@@ -135,6 +135,35 @@ class Audiobook():
         audio_file.save()
 
 
+class Preset():
+    def __init__(self) -> None:
+        self.preset_json_path: str = "AudiobookEncoder/core/presets.json"
+        self.desktop_path: str = QStandardPaths.standardLocations(QStandardPaths.DesktopLocation)[0]
+        self.data: dict = {"author": {"destination": self.desktop_path,
+                                      "quality": 1}}
+
+    def save_data(self, data: dict) -> dict:
+        JsonIO().write(data, self.preset_json_path)
+        return data
+
+    def read_data(self) -> dict:
+        return JsonIO.read(self.preset_json_path)
+
+    def delete_data(self, key: str) -> dict:
+        json_data: dict = self.read_data()
+        json_data.pop(key, None)
+        self.save_data(json_data)
+        return json_data
+
+    def get_data(self, user_inputs: dict) -> dict:
+        json_data: dict = self.read_data()
+        self.data[user_inputs["author"]] = self.data.pop("author")
+        for key, _value in self.data[user_inputs["author"]].items():
+            self.data[user_inputs["author"]][key] = user_inputs[key]
+        json_data.update(self.data)
+        self.save_data(json_data)
+        return self.data
+
 class AudioPlayer(QMediaPlayer):
     def __init__(self, parent) -> None:
         super().__init__()
