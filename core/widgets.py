@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (QWidget, QTreeWidget, QAbstractItemView, QTreeWidgetItem,
                                QLabel, QPushButton, QLineEdit, QComboBox, QFileDialog,
-                               QMenu)
+                               QMenu, QWidgetAction, QGridLayout)
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, QSize, QFileInfo, QStandardPaths
 from datetime import timedelta
@@ -30,9 +30,6 @@ class TreeWidget(QTreeWidget):
         self.setCurrentItem(self.topLevelItem(0))
         self.audio_player: AudioPlayer = AudioPlayer(self)
         self.last_played_item: TreeWidgetItem | bool = False
-        # Signals
-        #self.itemSelectionChanged.connect(self.changeWidgets)
-        #self.itemDoubleClicked.connect(self.openFolder)
 
     def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls():
@@ -44,6 +41,7 @@ class TreeWidget(QTreeWidget):
         super().dragMoveEvent(event)
 
     def dropEvent(self, event) -> None:
+        """Drop folder or mp3 files into widget"""
         if event.mimeData().hasUrls():
             data: dict = Audiobook().get_data(event.mimeData().urls())
             if not data:
@@ -65,7 +63,7 @@ class TreeWidget(QTreeWidget):
                     # delete child items
                     each_item.parent().removeChild(each_item)
                     Audiobook().delete_data(dict(audiobook_key=each_item.args["audiobook_key"],
-                                                file=each_item.text(0)))
+                                                 file=each_item.text(0)))
                 self.parent_item_counter_update()
 
         if event.key() == Qt.Key_Up:
@@ -249,12 +247,9 @@ class TreeWidgetItem(QTreeWidgetItem):
                                                    parent=column0_style,
                                                    geometry=[665, 17, 25, 30],
                                                    tip="",
-                                                   action="set_author_preset",
+                                                   action="author_preset",
                                                    user_inputs=dict()))
-        book_quality: ExportOptions = ExportOptions(dict(options=["96 Kbps, Stereo, 48 kHz",
-                                                                  "128 Kbps, Stereo, 48 kHz",
-                                                                  "256 Kbps, Stereo, 48 kHz",
-                                                                  "320 Kbps, Stereo, 48 kHz"],
+        book_quality: ExportOptions = ExportOptions(dict(options=Audiobook().quality_presets,
                                                          parent=column0_style,
                                                          geometry=[110, 55, 270, 25],
                                                          audiobook_key=self.args["audiobook_key"]))
@@ -279,7 +274,7 @@ class TreeWidgetItem(QTreeWidgetItem):
                                  "quality": book_quality,
                                  "duration": book_duration,
                                  "destination": book_export})
-        book_presets.args["user_inputs"] = self.user_inputs
+        book_presets.args.update({"user_inputs": self.user_inputs})
 
 
 class PushButton(QPushButton):
@@ -297,18 +292,17 @@ class PushButton(QPushButton):
         if isinstance(args["action"], str):
             if args["action"] == "file_dialog":
                 args["action"] = self.file_dialog
-            elif args["action"] == "set_author_preset":
-                args["action"] = self.empty
-                self.author_menu = QMenu()
-                self.setMenu(self.author_menu)
-                self.author_menu.aboutToShow.connect(self.create_author_preset_menu)
+            elif args["action"] == "author_preset":
                 self.setStyleSheet("QPushButton::menu-indicator {width: 0px;}")
+                args["action"] = self.empty
+                self.author_menu: PresetMenu = PresetMenu(self.args)
+                self.setMenu(self.author_menu)
             else:
                 args["action"] = self.empty
         self.clicked.connect(args["action"])
 
     def empty(self):
-        # empty signal function to avoid errors
+        """empty signal function to avoid errors"""
         pass
 
     def file_dialog(self):
@@ -322,19 +316,73 @@ class PushButton(QPushButton):
             export_path = open_path
         self.args["user_inputs"]["destination"].setText(export_path)
 
-    def create_author_preset_menu(self):
-        """create preset item menu"""
-        self.author_menu.clear()
-        self.author_menu.addAction("Save", self.save_author_preset)
-        self.author_menu.addSeparator()
-        for each_preset in sorted(Preset().read_data()):
-            self.author_menu.addAction(each_preset)
 
-    def save_author_preset(self):
+class PresetMenu(QMenu):
+    """Costum QMenu"""
+    def __init__(self, args: dict) -> None:
+        super().__init__()
+        self.args: dict = args
+        self.aboutToShow.connect(self.create_author_preset_menu)
+
+    def create_author_preset_menu(self) -> None:
+        """Create preset item menu"""
+        self.clear()
+        self.addAction("Save", self.save_author_preset)
+        self.addSeparator()
+        for each_preset in sorted(Preset().read_data()):
+            self.addAction(PresetWidgetAction(dict(parent=self,
+                                                   name=each_preset,
+                                                   user_inputs=self.args["user_inputs"])))
+
+    def save_author_preset(self) -> None:
+        """Save user infomation from input widgets into json"""
         Preset().get_data(dict(author=self.args["user_inputs"]["author"].text(),
                                destination=self.args["user_inputs"]["destination"].text(),
                                quality=self.args["user_inputs"]["quality"].currentIndex()))
         self.create_author_preset_menu()
+
+
+class PresetWidgetAction(QWidgetAction):
+    """Costum QWidgetAction"""
+    def __init__(self, args: dict) -> None:
+        super().__init__(args["parent"])
+        self.container: QWidget = QWidget()
+        self.preset_button: PushButton = PushButton(dict(name=args["name"],
+                                                         parent=self.container,
+                                                         geometry=[0, 0, 0, 0],
+                                                         tip="",
+                                                         action=self.apply_author_preset))
+        self.delete_button: PushButton = PushButton(dict(name="\N{HEAVY MULTIPLICATION X}",
+                                                         parent=self.container,
+                                                         geometry=[0, 0, 0, 0],
+                                                         tip="",
+                                                         action=self.delete_author_preset))
+        self.container.setStyleSheet("QPushButton {border: none;\
+                                              text-align: left;}\
+                                      QPushButton:hover {background-color: rgb(0, 122, 255);}")
+        self.grid_layout: QGridLayout = QGridLayout()
+        self.grid_layout.addWidget(self.preset_button, 0, 0)
+        self.grid_layout.addWidget(self.delete_button, 0, 1)
+        self.grid_layout.setContentsMargins(18,3,5,3)
+        self.grid_layout.setSpacing(3)
+        self.grid_layout.setColumnMinimumWidth(0, 200)
+        self.container.setLayout(self.grid_layout)
+        self.setDefaultWidget(self.container)
+        self.args = args
+
+    def apply_author_preset(self):
+        data: dict = Preset().read_data()
+        self.args["user_inputs"]["author"].setText(self.args["name"])
+        for key, value in data[self.args["name"]].items():
+            widget: TextField | ExportOptions = self.args["user_inputs"][key]
+            if isinstance(widget, TextField):
+                widget.setText(value)
+            elif isinstance(widget, ExportOptions):
+                    widget.setCurrentIndex(value)
+
+    def delete_author_preset(self):
+        Preset().delete_data(self.args["name"])
+        self.deleteLater()
 
 
 class ToggleButton(QPushButton):
@@ -364,12 +412,11 @@ class ToggleButton(QPushButton):
         data: dict = Audiobook().read_data()
         audiobook_index: str = self.args["audiobook_key"]
         toggle_state: bool = data[audiobook_index]["export"]
-        data[audiobook_index]["export"] = False if toggle_state else True
+        data[audiobook_index].update({"export": False if toggle_state else True})
         self.toggle_color("DarkRed" if toggle_state else "DarkGreen")
         self.args["state"] = False if toggle_state else True
         self.args["function"]()
         Audiobook().save_data(data)
-
 
 
 class Label(QLabel):
@@ -447,7 +494,7 @@ class BookCover(QLabel):
                 event.acceptProposedAction()
                 audiobook_index: str = self.args["audiobook_key"]
                 data: dict = Audiobook().read_data()
-                data[audiobook_index]["cover"] = url.path()
+                data[audiobook_index].update({"cover": url.path()})
                 self.show_buttons(True)
                 Audiobook().save_data(data)
         else:
@@ -473,7 +520,7 @@ class TextField(QLineEdit):
         data: dict = Audiobook().read_data()
         audiobook_index: str = self.args["audiobook_key"]
         audiobook_input: str = self.args["name"].lower()
-        data[audiobook_index][audiobook_input] = self.text()
+        data[audiobook_index].update({audiobook_input: self.text()})
         Audiobook().save_data(data)
 
 
@@ -495,5 +542,5 @@ class ExportOptions(QComboBox):
     def index_changed(self) -> None:
         audiobook_index: str = self.args["audiobook_key"]
         data: dict = Audiobook().read_data()
-        data[audiobook_index]["quality"] = self.currentIndex()
+        data[audiobook_index].update({"quality": self.currentIndex()})
         Audiobook().save_data(data)
