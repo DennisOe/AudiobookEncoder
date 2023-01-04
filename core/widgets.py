@@ -41,7 +41,7 @@ class TreeWidget(QTreeWidget):
         super().dragMoveEvent(event)
 
     def dropEvent(self, event) -> None:
-        """Drop folder or mp3 files into widget"""
+        """Drop folder or files into widget"""
         if event.mimeData().hasUrls():
             data: dict = Audiobook().get_data(event.mimeData().urls())
             if not data:
@@ -51,9 +51,9 @@ class TreeWidget(QTreeWidget):
             super().dropEvent(event)
 
     def keyPressEvent(self, event) -> None:
+        # delete audiobooks or files
         if (event.modifiers() == Qt.ControlModifier and
             event.key() == Qt.Key_Backspace):
-                # delete audiobooks or files
                 for each_item in self.selectedItems():
                     if not each_item.text(0):
                         # delete parent items
@@ -65,9 +65,8 @@ class TreeWidget(QTreeWidget):
                     Audiobook().delete_data(dict(audiobook_key=each_item.args["audiobook_key"],
                                                  file=each_item.text(0)))
                 self.parent_item_counter_update()
-
+        # walk up the treewidget items
         if event.key() == Qt.Key_Up:
-            # walk up the treewidget items
             if self.selectedItems():
                 if (not self.indexFromItem(self.selectedItems()[0]).row() and
                     self.selectedItems()[0].childCount()):
@@ -77,9 +76,8 @@ class TreeWidget(QTreeWidget):
                         return
                 item_up: TreeWidgetItem = self.itemAbove(self.selectedItems()[0])
                 self.setCurrentItem(item_up)
-
+        # walk down the treewidget items
         if event.key() == Qt.Key_Down:
-            # walk down the treewidget items
             if self.selectedItems():
                 if (self.indexFromItem(self.selectedItems()[0]).row() == 2 and
                     self.selectedItems()[0].childCount()):
@@ -89,14 +87,12 @@ class TreeWidget(QTreeWidget):
                         return
                 item_down: TreeWidgetItem = self.itemBelow(self.selectedItems()[0])
                 self.setCurrentItem(item_down)
-
+        # expand parent items
         if event.key() == Qt.Key_Right:
-            # expand parent items
             for each_item in self.selectedItems():
                 each_item.setExpanded(True)
-
+        # jump to root tree item and collapse items
         if event.key() == Qt.Key_Left:
-            # jump to root tree item and collapse items
             selected_items: list[TreeWidgetItem] = self.selectedItems()
             self.clearSelection()
             items_to_collapse: list = []
@@ -111,16 +107,14 @@ class TreeWidget(QTreeWidget):
                 # select parent item widgets
                 for each_item_collapse in items_to_collapse:
                     each_item_collapse.setSelected(True)
-
+        # select all parent items cmd+a
         if (event.modifiers() == Qt.ControlModifier and
             event.key() == Qt.Key_A):
-                # select all parent items cmd+a
                 self.clearSelection()
                 for each_parent_item in range(self.invisibleRootItem().childCount()):
                     self.setCurrentItem(self.topLevelItem(each_parent_item))
-
+        # play or stop file playback
         if event.key() == Qt.Key_Space:
-            # play or stop file playback
             selected_items: list[TreeWidgetItem] = self.selectedItems()
             if not selected_items or not "file" in selected_items[0].args:
                 return
