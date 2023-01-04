@@ -195,6 +195,7 @@ class Preset():
         preset_key = [e_key for e_key in json_data.keys() if e_key in meta_data]
         if not preset_key:
             return {}
+        sorted(preset_key, key=len)
         self.data.update({preset_key[0]: self.data.pop("author")})
         for key, value in json_data[preset_key[0]].items():
             self.data[preset_key[0]].update({key: value})
