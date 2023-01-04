@@ -53,7 +53,7 @@ class Audiobook():
         return json_data
 
     def get_data(self, paths: list[QUrl]) -> dict:
-        """Collects data from drag and drop event and saves it"""
+        """Collects files from list, creates a dict and saves it to json"""
         files: list [str] = []
         json_data: dict = self.read_data()
         audiobook_count: int = len(json_data)
@@ -77,17 +77,24 @@ class Audiobook():
         for each_file in files:
             meta_data: dict = self.get_meta_data(each_file)
             if "audiobook_index" in self.data:
-                title: str = f"audiobook_{audiobook_count}"
-                self.data.update({title: self.data.pop("audiobook_index")})
-                self.data[title].update({"title": meta_data["title"]})
-                self.data[title].update({"author": meta_data["author"]})
+                index: str = f"audiobook_{audiobook_count}"
+                self.data.update({index: self.data.pop("audiobook_index")})
+                self.data[index].update({"title": meta_data["title"]})
+                self.data[index].update({"author": meta_data["author"]})
                 # cover
-                meta_cover = self.get_meta_cover(each_file, title)
+                meta_cover = self.get_meta_cover(each_file, index)
                 if meta_cover:
-                    self.data[title].update({"cover": meta_cover})
-            self.data[title]["duration"] += meta_data["duration"]
-            self.data[title]["files"].append(dict(file=each_file,
+                    self.data[index].update({"cover": meta_cover})
+            self.data[index]["duration"] += meta_data["duration"]
+            self.data[index]["files"].append(dict(file=each_file,
                                                   duration=meta_data["duration"]))
+        preset = Preset().auto_apply_data(", ".join([meta_data["title"],
+                                                     meta_data["author"]]))
+        if preset:
+            author = list(preset.keys())[0]
+            self.data[index].update({"author": author})
+            for key, value in preset[author].items():
+                self.data[index].update({key: value})
         json_data.update(self.data)
         self.save_data(json_data)
         return self.data
@@ -175,16 +182,27 @@ class Preset():
     def get_data(self, user_inputs: dict) -> dict:
         """Collect data from user inputs"""
         json_data: dict = self.read_data()
-        self.data[user_inputs["author"]] = self.data.pop("author")
+        self.data.update({user_inputs["author"]: self.data.pop("author")})
         for key, value in self.data[user_inputs["author"]].items():
             self.data[user_inputs["author"]].update({key: user_inputs[key]})
         json_data.update(self.data)
         self.save_data(json_data)
         return self.data
 
+    def auto_apply_data(self, meta_data: str) -> dict[str, str]:
+        """Compares data keys with meta data to auto apply a preset"""
+        json_data: dict = self.read_data()
+        preset_key = [e_key for e_key in json_data.keys() if e_key in meta_data]
+        if not preset_key:
+            return {}
+        self.data.update({preset_key[0]: self.data.pop("author")})
+        for key, value in json_data[preset_key[0]].items():
+            self.data[preset_key[0]].update({key: value})
+        return self.data
+
 
 class AudioPlayer(QMediaPlayer):
-    """Audioplayer plays mp3s"""
+    """Audioplayer plays audiofiles"""
     def __init__(self, parent) -> None:
         super().__init__()
         self.setParent(parent)
@@ -193,7 +211,7 @@ class AudioPlayer(QMediaPlayer):
         self.playing_state: bool = False
 
     def play_audio(self, path: str) -> None:
-        """Start, stop and switch mp3s"""
+        """Start, stop and switch files"""
         if not self.validate_file(path):
             return
         if self.playbackState() == QMediaPlayer.StoppedState:
