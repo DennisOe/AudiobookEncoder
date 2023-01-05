@@ -230,10 +230,12 @@ class TreeWidgetItem(QTreeWidgetItem):
         book_cover: BookCover = BookCover(dict(parent=column0_style,
                                                audiobook_key=self.args["audiobook_key"]))
         book_title: TextField = TextField(dict(name="Title",
+                                               tip="Title",
                                                parent=column0_style,
                                                geometry=[110, 20, 270, 25],
                                                audiobook_key=self.args["audiobook_key"]))
         book_author: TextField = TextField(dict(name="Author",
+                                                tip="Author",
                                                 parent=column0_style,
                                                 geometry=[390, 20, 270, 25],
                                                 audiobook_key=self.args["audiobook_key"]))
@@ -248,6 +250,7 @@ class TreeWidgetItem(QTreeWidgetItem):
                                                          geometry=[110, 55, 270, 25],
                                                          audiobook_key=self.args["audiobook_key"]))
         book_export: TextField = TextField(dict(name="Destination",
+                                                tip="Export Destination",
                                                 parent=column0_style,
                                                 geometry=[390, 55, 270, 25],
                                                 audiobook_key=self.args["audiobook_key"]))
@@ -278,7 +281,7 @@ class PushButton(QPushButton):
         self.setParent(args["parent"])
         self.setVisible(True)
         self.setGeometry(*args["geometry"])
-        self.setText(args["name"])
+        self.setText(args["name"] if len(args["name"]) <= 35 else f"{args['name'][:30]}…")
         self.setToolTip(args["tip"])
         self.args: dict = args
         self.popMenu: QMenu
@@ -455,7 +458,6 @@ class BookCover(QLabel):
                                                          action=self.resize_cover))
         self.resize_button.setVisible(False)
         self.args: dict = args
-        # Signal
 
     def show_buttons(self, state: bool) -> None:
         self.delete_button.setVisible(state)
@@ -503,6 +505,7 @@ class TextField(QLineEdit):
         self.setVisible(True)
         self.setGeometry(*args["geometry"])
         self.setPlaceholderText(args["name"])
+        self.setToolTip(args["tip"])
         self.setStyleSheet("border-radius: 5px;\
                             border: 2px solid grey;\
                             background-color: DarkGray;")
