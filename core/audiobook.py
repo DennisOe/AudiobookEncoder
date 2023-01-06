@@ -1,6 +1,7 @@
 import mutagen
 from mutagen.mp4 import MP4, MP4Cover
-from PySide6.QtCore import QUrl, QSize, QFileInfo, QDirIterator, QStandardPaths
+from PySide6.QtCore import (QUrl, QSize, QFileInfo, QDirIterator, QStandardPaths,
+                            QProcess, QThread)
 from PySide6.QtGui import QImage
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from jsonio  import JsonIO
@@ -10,18 +11,20 @@ class Audiobook():
     """Edit data, audiobook files and meta data"""
     def __init__(self) -> None:
         self.audiobook_json_path: str = "AudiobookEncoder/core/audiobooks.json"
+        self.abbinder_path: str = "AudiobookEncoder/core/abbinder"
         self.desktop_path: str = QStandardPaths.standardLocations(QStandardPaths.DesktopLocation)[0]
-        self.quality_presets: list[str] = ["96 Kbps, Stereo, 48 kHz",
-                                           "128 Kbps, Stereo, 48 kHz",
-                                           "256 Kbps, Stereo, 48 kHz",
-                                           "320 Kbps, Stereo, 48 kHz"]
+        self.quality_presets: list[str] = ["96 KBps, Mono, 44100",
+                                           "96 KBps, Stereo, 48000",
+                                           "128 KBps, Stereo, 48000",
+                                           "256 KBps, Stereo, 48000",
+                                           "320 KBps, Stereo, 48000"]
         self.data: dict = {"audiobook_index": {"title": "",
                                                "author": "",
                                                "genre": "Audiobook",
                                                "cover": "",
                                                "duration": 0,
                                                "destination": self.desktop_path,
-                                               "quality": 1,
+                                               "quality": 2,
                                                "files": [],
                                                "export": True,}}
 
@@ -138,22 +141,43 @@ class Audiobook():
         cover.save(path)
         return path
 
-    def set_meta_data(self, path: str, tags: dict) -> None:
+    def set_meta_data(self, path: str,  data: dict) -> None:
         """Save meta tags to m4b"""
-        audio_file = mutagen.File(path, easy=True) # TODO
+        audio_file = mutagen.File(path, easy=True)
         # set metadata
-        audio_file["title"] = tags["title"]
-        audio_file["album"] = tags["album"]
-        audio_file["artist"] = tags["author"]
-        audio_file["genre"] = tags["genre"]
-        audio_file["tracknumber"] = tags["tracknumber"]
+        audio_file["title"] = data["title"]
+        audio_file["album"] = data["title"]
+        audio_file["artist"] = data["author"]
+        audio_file["genre"] = data["genre"]
+        #audio_file["tracknumber"] = data["tracknumber"]
         audio_file.save()
         # set cover image
         audio_file: MP4 = MP4(path)
-        cover_file = open(tags["cover"], "rb").read() # TODO
-        audio_file.tags["covr"] = [MP4Cover(cover_file, MP4Cover.FORMAT_PNG)]
-        audio_file.save()
+        with open(data["cover"], "rb") as cover_file:
+            audio_file.tags["covr"] = [MP4Cover(cover_file.read(), MP4Cover.FORMAT_PNG)]
+            audio_file.save()
 
+    def export(self):
+        cpus: int = QThread.idealThreadCount()
+        json_data: dict = self.read_data()
+        export_file: str = f"{json_data['audiobook_0']['destination']}/{json_data['audiobook_0']['title']}.m4b"
+        files: str = [e["file"] for e in json_data['audiobook_0']['files']]
+        # "-sv" = skip errors and go on with conversion, print some info on files being converted
+        # "-b" = bitrate in KBps
+        # "-r" = sample rate : 8000, 11025, 12000, 16000, 22050, 24000, 32000, (44100), 48000
+        # "-c" = audio channels : 1/(2)
+        # "-E" = each file chapter: "%t" title, "%N" number
+        bitrate, channels, sample_rate = self.quality_presets[json_data['audiobook_0']['quality']].split(", ")
+        channels = "2" if "Stereo" in channels else "1" # Mono
+        abbinder_cmd: str = ["-sv", "-b", bitrate, "-r", sample_rate, "-c", channels, "-E", "%N", export_file] + files
+        self.process: QProcess = QProcess()
+        self.process.finished.connect(lambda: self.export_finished(dict(path=export_file,
+                                                                        data=json_data["audiobook_0"])))
+        self.process.start(self.abbinder_path, abbinder_cmd)
+
+    def export_finished(self, args: dict):
+        self.set_meta_data(args["path"], args["data"])
+        self.process = None
 
 class Preset():
     """Edit preset data"""
