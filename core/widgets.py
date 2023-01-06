@@ -96,6 +96,7 @@ class TreeWidget(QTreeWidget):
         if event.key() == Qt.Key_Up:
             if self.selectedItems():
                 item_index: int = self.indexFromItem(self.selectedItems()[0]).row()
+                # when first parent item is selected go to last parent item
                 if (not item_index and
                     self.selectedItems()[0].childCount()):
                         # select last item
@@ -107,12 +108,14 @@ class TreeWidget(QTreeWidget):
         if event.key() == Qt.Key_Down:
             if self.selectedItems():
                 item_index: int = self.indexFromItem(self.selectedItems()[0]).row()
+                # when the last parent item is selected go to first parent
                 if (self.selectedItems()[0].childCount() and
                     not self.selectedItems()[0].isExpanded() and
                     item_index == parent_item_count-1):
                         # select first item
                         self.setCurrentItem(self.topLevelItem(0))
                         return
+                # when last child item ist seleced go to first parent
                 if (not self.selectedItems()[0].childCount() and
                     item_index == self.selectedItems()[0].parent().childCount()-1):
                     item_down: TreeWidgetItem = self.itemBelow(self.selectedItems()[0])
@@ -332,6 +335,8 @@ class PushButton(QPushButton):
                 args["action"] = self.empty
                 self.author_menu: PresetMenu = PresetMenu(self.args)
                 self.setMenu(self.author_menu)
+            elif args["action"] == "export":
+                 args["action"] = Audiobook().export
             else:
                 args["action"] = self.empty
         self.clicked.connect(args["action"])
