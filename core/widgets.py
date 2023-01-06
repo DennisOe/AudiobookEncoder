@@ -16,7 +16,9 @@ class TreeWidget(QTreeWidget):
         self.setHeaderLabels(["Audiobook (0/0)", "Duration"])
         self.header().resizeSection(0, args["geometry"][2]-110)
         self.header().setStretchLastSection(True)
+        self.setAnimated(True)
         self.setAcceptDrops(True)
+        self.setDragEnabled(True)
         self.setDragDropMode(QAbstractItemView.InternalMove)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         # help text
@@ -38,19 +40,44 @@ class TreeWidget(QTreeWidget):
             super().dragEnterEvent(event)
 
     def dragMoveEvent(self, event) -> None:
+        """Drag checks for external data or internal QTreewidgetItem movement"""
+        if self.selectedItems():
+            if isinstance(self.selectedItems()[0], TreeWidgetItem):
+                root_item: QTreeWidgetItem = self.invisibleRootItem()
+                # disable drop events for main treewidget
+                root_item.setFlags(root_item.flags() & ~Qt.ItemIsDropEnabled)
+                for parent_item_index in range(root_item.childCount()):
+                    parent_item: TreeWidgetItem = self.topLevelItem(parent_item_index)
+                    if parent_item == self.selectedItems()[0].parent():
+                        continue
+                    # disable drop events to avoid moving items between parent items
+                    parent_item.setFlags(parent_item.flags() & ~Qt.ItemIsDropEnabled)
         super().dragMoveEvent(event)
 
     def dropEvent(self, event) -> None:
-        """Drop folder or files into widget"""
+        """Drop QTreeItemWidgets, folders or files into widget"""
         if event.mimeData().hasUrls():
             data: dict = Audiobook().get_data(event.mimeData().urls())
             if not data:
                 return
             self.create_tree(data)
         else:
+            items: TreeWidgetItem = self.selectedItems()
+            # get indices of selected QTreeWidgetItems before drop event
+            indices: int = [self.indexFromItem(i).row() for i in items]
             super().dropEvent(event)
+            json_data: dict = Audiobook().read_data()
+            # get files from json by indices
+            files: list[dict] = [json_data[items[0].args["audiobook_key"]]["files"][index] for index in indices]
+            # delete files from json
+            [json_data[items[0].args["audiobook_key"]]["files"].remove(f_dict) for f_dict in files]
+            dropped_index: int = self.indexFromItem(items[0]).row()
+            # insert files in json at new QTreeWidget index
+            json_data[items[0].args["audiobook_key"]]["files"][dropped_index:dropped_index] = files
+            Audiobook().save_data(json_data)
 
     def keyPressEvent(self, event) -> None:
+        parent_item_count: int = self.invisibleRootItem().childCount()
         # delete audiobooks or files
         if (event.modifiers() == Qt.ControlModifier and
             event.key() == Qt.Key_Backspace):
@@ -68,21 +95,28 @@ class TreeWidget(QTreeWidget):
         # walk up the treewidget items
         if event.key() == Qt.Key_Up:
             if self.selectedItems():
-                if (not self.indexFromItem(self.selectedItems()[0]).row() and
+                item_index: int = self.indexFromItem(self.selectedItems()[0]).row()
+                if (not item_index and
                     self.selectedItems()[0].childCount()):
-                        child_count: int = self.invisibleRootItem().childCount()
                         # select last item
-                        self.setCurrentItem(self.topLevelItem(child_count-1))
+                        self.setCurrentItem(self.topLevelItem(parent_item_count-1))
                         return
                 item_up: TreeWidgetItem = self.itemAbove(self.selectedItems()[0])
                 self.setCurrentItem(item_up)
         # walk down the treewidget items
         if event.key() == Qt.Key_Down:
             if self.selectedItems():
-                if (self.indexFromItem(self.selectedItems()[0]).row() == 2 and
-                    self.selectedItems()[0].childCount()):
-                        child_count: int = self.invisibleRootItem().childCount()
+                item_index: int = self.indexFromItem(self.selectedItems()[0]).row()
+                if (self.selectedItems()[0].childCount() and
+                    not self.selectedItems()[0].isExpanded() and
+                    item_index == parent_item_count-1):
                         # select first item
+                        self.setCurrentItem(self.topLevelItem(0))
+                        return
+                if (not self.selectedItems()[0].childCount() and
+                    item_index == self.selectedItems()[0].parent().childCount()-1):
+                    item_down: TreeWidgetItem = self.itemBelow(self.selectedItems()[0])
+                    if not item_down:
                         self.setCurrentItem(self.topLevelItem(0))
                         return
                 item_down: TreeWidgetItem = self.itemBelow(self.selectedItems()[0])
@@ -111,7 +145,7 @@ class TreeWidget(QTreeWidget):
         if (event.modifiers() == Qt.ControlModifier and
             event.key() == Qt.Key_A):
                 self.clearSelection()
-                for each_parent_item in range(self.invisibleRootItem().childCount()):
+                for each_parent_item in range(parent_item_count):
                     self.setCurrentItem(self.topLevelItem(each_parent_item))
         # play or stop file playback
         if event.key() == Qt.Key_Space:
@@ -132,12 +166,14 @@ class TreeWidget(QTreeWidget):
     def add_parent_item(self, audiobook_key: str) -> QTreeWidgetItem:
         parent_item: TreeWidgetItem = TreeWidgetItem(dict(audiobook_key=audiobook_key,
                                                           parent=self))
+        parent_item.setFlags(parent_item.flags() & ~Qt.ItemIsDragEnabled)
         parent_item.add_user_inputs()
         parent_item.setSizeHint(0, QSize(100, 100))
         return parent_item
 
     def add_child_item(self, args: dict) -> None:
         child_item: TreeWidgetItem = TreeWidgetItem(args)
+        child_item.setFlags(child_item.flags() & ~Qt.ItemIsDropEnabled)
         args["parent"].addChild(child_item)
         child_item.set_text(args)
 
@@ -195,7 +231,8 @@ class TreeWidgetItem(QTreeWidgetItem):
         super().__init__()
         self.setFlags(Qt.ItemIsEnabled |
                       Qt.ItemIsSelectable |
-                      Qt.ItemIsDropEnabled)
+                      Qt.ItemIsDropEnabled |
+                      Qt.ItemIsDragEnabled)
         self.user_inputs: dict = {}
         self.args: dict = args
 
@@ -280,7 +317,8 @@ class PushButton(QPushButton):
         super().__init__()
         self.setParent(args["parent"])
         self.setVisible(True)
-        self.setGeometry(*args["geometry"])
+        if "geometry" in args.keys():
+            self.setGeometry(*args["geometry"])
         self.setText(args["name"] if len(args["name"]) <= 35 else f"{args['name'][:30]}…")
         self.setToolTip(args["tip"])
         self.args: dict = args
@@ -346,13 +384,11 @@ class PresetWidgetAction(QWidgetAction):
         self.container: QWidget = QWidget()
         self.preset_button: PushButton = PushButton(dict(name=args["name"],
                                                          parent=self.container,
-                                                         geometry=[0, 0, 0, 0],
-                                                         tip="",
+                                                         tip="Apply preset",
                                                          action=self.apply_author_preset))
         self.delete_button: PushButton = PushButton(dict(name="\N{HEAVY MULTIPLICATION X}",
                                                          parent=self.container,
-                                                         geometry=[0, 0, 0, 0],
-                                                         tip="",
+                                                         tip="Delete preset",
                                                          action=self.delete_author_preset))
         self.container.setStyleSheet("QPushButton {border: none;\
                                               text-align: left;}\
@@ -360,7 +396,7 @@ class PresetWidgetAction(QWidgetAction):
         self.grid_layout: QGridLayout = QGridLayout()
         self.grid_layout.addWidget(self.preset_button, 0, 0)
         self.grid_layout.addWidget(self.delete_button, 0, 1)
-        self.grid_layout.setContentsMargins(18,3,5,3)
+        self.grid_layout.setContentsMargins(18, 3, 5, 3)
         self.grid_layout.setSpacing(3)
         self.grid_layout.setColumnMinimumWidth(0, 200)
         self.container.setLayout(self.grid_layout)
