@@ -89,8 +89,11 @@ class TreeWidget(QTreeWidget):
                         continue
                     # delete child items
                     each_item.parent().removeChild(each_item)
-                    Audiobook().delete_data(dict(audiobook_key=each_item.args["audiobook_key"],
-                                                 file=each_item.text(0)))
+                    json_data: dict = Audiobook().delete_data(dict(audiobook_key=each_item.args["audiobook_key"],
+                                                                   file=each_item.text(0)))
+                    # new total duration
+                    new_duration: int = json_data[each_item.args["audiobook_key"]]["duration"]
+                    each_item.args["parent"].user_inputs["duration"].setText(str(timedelta(seconds=new_duration)))
                 self.parent_item_counter_update()
         # walk up the treewidget items
         if event.key() == Qt.Key_Up:
