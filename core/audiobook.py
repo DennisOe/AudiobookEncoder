@@ -1,7 +1,9 @@
 import mutagen
 from mutagen.mp4 import MP4, MP4Cover
-from PySide6.QtCore import (QUrl, QSize, QFileInfo, QDirIterator, QStandardPaths,
-                            QProcess, QThreadPool)
+from multiprocessing import Pool
+from subprocess import Popen, PIPE, STDOUT
+from threading import Thread
+from PySide6.QtCore import QUrl, QSize, QFileInfo, QDirIterator, QStandardPaths, QThreadPool
 from PySide6.QtGui import QImage
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from jsonio  import JsonIO
@@ -22,12 +24,12 @@ class Audiobook():
                                                "author": "",
                                                "genre": "Audiobook",
                                                "cover": "",
+                                               "tracknumber": [1, 1],
                                                "duration": 0,
                                                "destination": self.desktop_path,
                                                "quality": 2,
                                                "files": [],
                                                "export": True,}}
-        self.process: dict[str, QProcess] = {}
 
     def save_data(self, data: dict) -> dict:
         """Save user added data to json"""
@@ -149,7 +151,7 @@ class Audiobook():
         audio_file["album"] = data["title"]
         audio_file["artist"] = data["author"]
         audio_file["genre"] = data["genre"]
-        #audio_file["tracknumber"] = data["tracknumber"]
+        audio_file["tracknumber"] = f"{data['tracknumber'][0]}/{data['tracknumber'][1]}"
         audio_file.save()
         # set cover image
         audio_file: MP4 = MP4(path)
@@ -158,26 +160,34 @@ class Audiobook():
             audio_file.save()
 
     def export(self):
-        cpus: int = QThreadPool().maxThreadCount()
+        """Extra thread for export to aboid freeze"""
+        export_thread: Thread = Thread(target=self.export_pool)
+        export_thread.start()
+
+    def export_pool(self):
+        """Multiprocessing depending on cpu cores"""
+        export_pool: Pool = Pool(QThreadPool().maxThreadCount())
+        export_pool.map(self.export_audiobook, self.read_data().keys())
+        export_pool.close()
+        export_pool.join()
+
+    def export_audiobook(self, audiobook_key):
+        """Main export function"""
         json_data: dict = self.read_data()
-        export_file: str = f"{json_data['audiobook_0']['destination']}/{json_data['audiobook_0']['title']}.m4b"
-        files: str = [e["file"] for e in json_data['audiobook_0']['files']]
+        export_file: str = f"{json_data[audiobook_key]['destination']}/{json_data[audiobook_key]['title']}.m4b"
+        files: str = [e["file"] for e in json_data[audiobook_key]['files']]
         # "-sv" = skip errors and go on with conversion, print some info on files being converted
         # "-b" = bitrate in KBps
         # "-r" = sample rate : 8000, 11025, 12000, 16000, 22050, 24000, 32000, (44100 default), 48000
         # "-c" = audio channels : 1, (2 default)
         # "-E" = each file chapter: "%t" title, "%N" number
-        bitrate, channels, sample_rate = self.quality_presets[json_data['audiobook_0']['quality']].split(", ")
-        channels = "2" if "Stereo" in channels else "1" # Mono
-        abbinder_cmd: str = ["-sv", "-b", bitrate, "-r", sample_rate, "-c", channels, "-E", "%N", export_file] + files
-        self.process.update({"audiobook_0": QProcess()})
-        self.process["audiobook_0"].finished.connect(lambda: self.export_finished(dict(path=export_file,
-                                                                        data=json_data["audiobook_0"])))
-        self.process["audiobook_0"].start(self.abbinder_path, abbinder_cmd)
+        bitrate, channels, sample_rate = self.quality_presets[json_data[audiobook_key]['quality']].split(", ")
+        channels: str = "2" if "Stereo" in channels else "1" # Mono
+        abbinder_cmd: str = [self.abbinder_path, "-sv", "-b", bitrate, "-r", sample_rate, "-c", channels, "-E", "%N", export_file] + files
+        process: Popen = Popen(abbinder_cmd, stdout=PIPE, stderr=STDOUT)
+        _stdout, _stderr = process.communicate()
+        self.set_meta_data(export_file, json_data[audiobook_key])
 
-    def export_finished(self, args: dict):
-        self.set_meta_data(args["path"], args["data"])
-        self.process.pop("audiobook_0", None)
 
 class Preset():
     """Edit preset data"""
