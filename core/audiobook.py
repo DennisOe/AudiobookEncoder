@@ -30,6 +30,7 @@ class Audiobook():
                                                "quality": 2,
                                                "files": [],
                                                "export": True,}}
+        self.data_export: dict = {}
 
     def save_data(self, data: dict) -> dict:
         """Save user added data to json"""
@@ -159,34 +160,88 @@ class Audiobook():
             audio_file.tags["covr"] = [MP4Cover(cover_file.read(), MP4Cover.FORMAT_PNG)]
             audio_file.save()
 
-    def export(self):
-        """Extra thread for export to aboid freeze"""
-        export_thread: Thread = Thread(target=self.export_pool)
-        export_thread.start()
-
-    def export_pool(self):
-        """Multiprocessing depending on cpu cores"""
-        export_pool: Pool = Pool(QThreadPool().maxThreadCount())
-        export_pool.map(self.export_audiobook, self.read_data().keys())
-        export_pool.close()
-        export_pool.join()
-
-    def export_audiobook(self, audiobook_key):
-        """Main export function"""
+    def split_audiobooks(self) -> None:
+        """Split audiobooks into 13h parts"""
         json_data: dict = self.read_data()
-        export_file: str = f"{json_data[audiobook_key]['destination']}/{json_data[audiobook_key]['title']}.m4b"
-        files: str = [e["file"] for e in json_data[audiobook_key]['files']]
-        # "-sv" = skip errors and go on with conversion, print some info on files being converted
-        # "-b" = bitrate in KBps
-        # "-r" = sample rate : 8000, 11025, 12000, 16000, 22050, 24000, 32000, (44100 default), 48000
-        # "-c" = audio channels : 1, (2 default)
-        # "-E" = each file chapter: "%t" title, "%N" number
-        bitrate, channels, sample_rate = self.quality_presets[json_data[audiobook_key]['quality']].split(", ")
-        channels: str = "2" if "Stereo" in channels else "1" # Mono
-        abbinder_cmd: str = [self.abbinder_path, "-sv", "-b", bitrate, "-r", sample_rate, "-c", channels, "-E", "%N", export_file] + files
+        self.data_export.clear()
+        audiobook: dict = {}
+        increment: int = 1
+        key_index: int = 0
+        duration: int = 0
+        for e_key, e_data in json_data.items():
+            key_index = len(self.data_export)
+            # change audiobook_1 key if exists
+            audiobook_key: str = f"{e_key[:-1]}{key_index}" if e_key in self.data_export else e_key
+            # audiobook less then 13h
+            if e_data["duration"] <= 46800:
+                self.data_export.update({audiobook_key: e_data})
+                continue
+            # split in parts
+            audiobook.update({audiobook_key: e_data.copy()})
+            # Title with "Part X" added
+            audiobook[audiobook_key].update({"title": f"{e_data['title']} Part {increment}"})
+            audiobook[audiobook_key].update({"files": []})
+            for e_file in e_data["files"]:
+                if sum([duration, e_file["duration"]]) <= 46800:
+                    duration += e_file["duration"]
+                    audiobook[audiobook_key].update({"duration": duration})
+                    audiobook[audiobook_key]["files"].append(dict(file=e_file["file"],
+                                                                  duration=e_file["duration"]))
+                    continue
+                increment += 1
+                key_index += 1
+                audiobook_key = f"{e_key[:-1]}{key_index}"
+                audiobook.update({audiobook_key: e_data.copy()})
+                audiobook[audiobook_key].update({"title": f"{e_data['title']} Part {increment}"})
+                audiobook[audiobook_key].update({"files": []})
+                # count new duration
+                duration = e_file["duration"]
+                audiobook[audiobook_key]["files"].append(dict(file=e_file["file"],
+                                                                duration=e_file["duration"]))
+            # add tracknumbers to parts
+            for i, e_a_key in enumerate(audiobook.keys(), 1):
+                audiobook[e_a_key].update({"tracknumber": [i, len(audiobook)]})
+            # add audiobooks and parts to export and cleanup
+            self.data_export.update(audiobook)
+            audiobook.clear()
+            increment = 1
+            key_index = 0
+            duration = 0
+
+    def export(self) -> None:
+        """Export audiobook"""
+        self.split_audiobooks()
+        # import pprint
+        # pp = pprint.PrettyPrinter(depth=4)
+        # pp.pprint(self.data_export)
+        # Extra thread for export to aboid freeze
+        #export_thread: Thread = Thread(target=self.export_pool)
+        #export_thread.start()
+
+    def export_pool(self) -> None:
+        """Multiprocessing depending on cpu cores"""
+        with Pool(QThreadPool().maxThreadCount()) as export_pool:
+            export_pool.map(self.export_audiobook, self.read_data().values())
+
+    def export_audiobook(self, data: dict) -> None:
+        """Main export function"""
+        export_file: str = f"{data['destination']}/{data['title']}.m4b"
+        if not QFileInfo(export_file).exists():
+            export_file = f"{self.desktop_path}/{data['title']}.m4b"
+        files: str = [e["file"] for e in data['files']]
+        bitrate, channels, sample_rate = self.quality_presets[data['quality']].split(", ")
+        channels: str = "2" if "Stereo" in channels else "1" # Stereo, Mono
+        abbinder_cmd: str = [self.abbinder_path, # executable path
+                             "-sv",              # skip errors, print infos
+                             "-b", bitrate,      # in KBps
+                             "-r", sample_rate,  # (44100 default), 48000
+                             "-c", channels,     # 1, (2 default)
+                             "-E", "%N",         # chapter by file: %N -> numbered
+                             export_file,        # export path
+                             *files]             # source files
         process: Popen = Popen(abbinder_cmd, stdout=PIPE, stderr=STDOUT)
         _stdout, _stderr = process.communicate()
-        self.set_meta_data(export_file, json_data[audiobook_key])
+        self.set_meta_data(export_file, data)
 
 
 class Preset():
