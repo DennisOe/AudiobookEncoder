@@ -81,19 +81,23 @@ class TreeWidget(QTreeWidget):
         # delete audiobooks or files
         if (event.modifiers() == Qt.ControlModifier and
             event.key() == Qt.Key_Backspace):
+                parent_items: list[str] = []
+                child_items: dict[str, str] = []
                 for each_item in self.selectedItems():
                     if not each_item.text(0):
                         # delete parent items
                         self.invisibleRootItem().removeChild(each_item)
-                        Audiobook().delete_data(dict(audiobook_key=each_item.args["audiobook_key"]))
+                        parent_items.append(each_item.args["audiobook_key"])
                         continue
                     # delete child items
                     each_item.parent().removeChild(each_item)
-                    json_data: dict = Audiobook().delete_data(dict(audiobook_key=each_item.args["audiobook_key"],
-                                                                   file=each_item.text(0)))
-                    # new total duration
-                    new_duration: int = json_data[each_item.args["audiobook_key"]]["duration"]
-                    each_item.args["parent"].user_inputs["duration"].setText(str(timedelta(seconds=new_duration)))
+                    child_items.append(dict(audiobook_key=each_item.args["audiobook_key"],
+                                            file=each_item.text(0)))
+                if parent_items:
+                    Audiobook().delete_data(dict(audiobook_keys=parent_items))
+                if child_items:
+                    json_data: dict = Audiobook().delete_data(dict(files=child_items))
+                    self.parent_update_duration(json_data)
                 self.parent_item_counter_update()
         # walk up the treewidget items
         if event.key() == Qt.Key_Up:
@@ -229,6 +233,15 @@ class TreeWidget(QTreeWidget):
                                                               if root_item.child(i).user_inputs["export"].args["state"]])
             self.help_text.hide()
             self.setHeaderLabels([f"Audiobook ({parent_item_active}/{parent_item_count})", "Duration"])
+
+    def parent_update_duration(self, data: dict) -> None:
+        """Update all parent item durations"""
+        root_item: QTreeWidgetItem = self.invisibleRootItem()
+        for e_data in data.values():
+            for parent_item_index in range(root_item.childCount()):
+                parent_item: TreeWidgetItem = self.topLevelItem(parent_item_index)
+                if e_data["title"] in parent_item.user_inputs["title"].text():
+                    parent_item.user_inputs["duration"].setText(str(timedelta(seconds=e_data["duration"])))
 
 
 class TreeWidgetItem(QTreeWidgetItem):
