@@ -30,11 +30,15 @@ class Audiobook():
                                                "quality": 2,
                                                "files": [],
                                                "export": True,}}
+        self.split_duration: dict[str, int] = {"24h": 86400,
+                                               "20h": 72000,
+                                               "12h": 43200,
+                                               "10h": 36000}
         self.data_export: dict = {}
 
     def save_data(self, data: dict) -> dict:
         """Save user added data to json"""
-        JsonIO().write(data, self.audiobook_json_path)
+        JsonIO.write(data, self.audiobook_json_path)
         return data
 
     def read_data(self) -> dict:
@@ -149,7 +153,7 @@ class Audiobook():
         audio_file = mutagen.File(path, easy=True)
         # set metadata
         audio_file["title"] = data["title"]
-        audio_file["album"] = data["title"]
+        audio_file["album"] = data["title"].split(" Part")[0]
         audio_file["artist"] = data["author"]
         audio_file["genre"] = data["genre"]
         audio_file["tracknumber"] = f"{data['tracknumber'][0]}/{data['tracknumber'][1]}"
@@ -163,65 +167,59 @@ class Audiobook():
     def split_audiobooks(self) -> None:
         """Split audiobooks into 13h parts"""
         json_data: dict = self.read_data()
-        self.data_export.clear()
-        audiobook: dict = {}
-        increment: int = 1
-        key_index: int = 0
-        duration: int = 0
         for e_key, e_data in json_data.items():
-            key_index = len(self.data_export)
+            if not e_data["export"]:
+                continue
+            audiobook: dict = {}
+            files: list[list] = [[]]
+            files_index: int = 0
+            key_index: int = len(self.data_export)
+            duration: int = 0
             # change audiobook_1 key if exists
             audiobook_key: str = f"{e_key[:-1]}{key_index}" if e_key in self.data_export else e_key
-            # audiobook less then 13h
-            if e_data["duration"] <= 46800:
+            # audiobook LESS then 24h
+            if e_data["duration"] <= self.split_duration["24h"]:
                 self.data_export.update({audiobook_key: e_data})
                 continue
-            # split in parts
-            audiobook.update({audiobook_key: e_data.copy()})
-            # Title with "Part X" added
-            audiobook[audiobook_key].update({"title": f"{e_data['title']} Part {increment}"})
-            audiobook[audiobook_key].update({"files": []})
+            # audiobook MORE then 24h
+            # split files in parts
             for e_file in e_data["files"]:
-                if sum([duration, e_file["duration"]]) <= 46800:
+                if sum([duration, e_file["duration"]]) <= self.split_duration["24h"]:
                     duration += e_file["duration"]
-                    audiobook[audiobook_key].update({"duration": duration})
-                    audiobook[audiobook_key]["files"].append(dict(file=e_file["file"],
-                                                                  duration=e_file["duration"]))
+                    files[files_index].append(e_file)
                     continue
-                increment += 1
-                key_index += 1
+                duration = e_file["duration"]
+                files_index += 1
+                files.append([e_file])
+            # create a new dict from file parts
+            for part, e_file in enumerate(files, 1):
                 audiobook_key = f"{e_key[:-1]}{key_index}"
                 audiobook.update({audiobook_key: e_data.copy()})
-                audiobook[audiobook_key].update({"title": f"{e_data['title']} Part {increment}"})
-                audiobook[audiobook_key].update({"files": []})
-                # count new duration
-                duration = e_file["duration"]
-                audiobook[audiobook_key]["files"].append(dict(file=e_file["file"],
-                                                                duration=e_file["duration"]))
-            # add tracknumbers to parts
-            for i, e_a_key in enumerate(audiobook.keys(), 1):
-                audiobook[e_a_key].update({"tracknumber": [i, len(audiobook)]})
-            # add audiobooks and parts to export and cleanup
+                # new title with part in name
+                audiobook[audiobook_key].update({"title": f"{e_data['title']} Part {part}"})
+                # add tracknumbers to parts
+                audiobook[audiobook_key].update({"tracknumber": [part, len(files)]})
+                audiobook[audiobook_key].update({"files": e_file})
+                # new duration
+                part_duration: int = sum([f["duration"] for f in e_file])
+                audiobook[audiobook_key].update({"duration": part_duration})
+                key_index += 1
             self.data_export.update(audiobook)
-            audiobook.clear()
-            increment = 1
-            key_index = 0
-            duration = 0
 
     def export(self) -> None:
         """Export audiobook"""
+        self.data_export.clear()
         self.split_audiobooks()
-        # import pprint
-        # pp = pprint.PrettyPrinter(depth=4)
-        # pp.pprint(self.data_export)
+        if not self.data_export:
+            return
         # Extra thread for export to aboid freeze
-        #export_thread: Thread = Thread(target=self.export_pool)
-        #export_thread.start()
+        export_thread: Thread = Thread(target=self.export_pool)
+        export_thread.start()
 
     def export_pool(self) -> None:
         """Multiprocessing depending on cpu cores"""
         with Pool(QThreadPool().maxThreadCount()) as export_pool:
-            export_pool.map(self.export_audiobook, self.read_data().values())
+            export_pool.map(self.export_audiobook, self.data_export.values())
 
     def export_audiobook(self, data: dict) -> None:
         """Main export function"""
@@ -254,7 +252,7 @@ class Preset():
 
     def save_data(self, data: dict) -> dict:
         """Save user added data to json"""
-        JsonIO().write(data, self.preset_json_path)
+        JsonIO.write(data, self.preset_json_path)
         return data
 
     def read_data(self) -> dict:
