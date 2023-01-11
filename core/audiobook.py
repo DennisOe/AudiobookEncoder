@@ -45,12 +45,12 @@ class Audiobook():
         """Read data from json"""
         return JsonIO.read(self.audiobook_json_path)
 
-    def delete_data(self, keys: dict) -> dict:
+    def delete_data(self, data: dict) -> dict:
         """Delete data from json"""
         json_data: dict = JsonIO.read(self.audiobook_json_path)
-        if "files" in keys:
+        if "files" in data:
             # delete file
-            for e_file in keys["files"]:
+            for e_file in data["files"]:
                 if not e_file["audiobook_key"] in json_data:
                     continue
                 for e_json_file in json_data[e_file["audiobook_key"]]["files"]:
@@ -58,11 +58,11 @@ class Audiobook():
                         continue
                     json_data[e_file["audiobook_key"]]["duration"] -= e_json_file["duration"]
                     json_data[e_file["audiobook_key"]]["files"].remove(e_json_file)
-        elif "cover" in keys:
-            json_data[keys["audiobook_key"]].update({"cover": ""})
+        elif "cover" in data:
+            json_data[data["audiobook_key"]].update({"cover": ""})
         else:
             # delete audiobook
-            for e_key in keys["audiobook_keys"]:
+            for e_key in data["audiobook_keys"]:
                 json_data.pop(e_key, None)
         self.save_data(json_data)
         return json_data
