@@ -23,13 +23,13 @@ class TreeWidget(QTreeWidget):
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         # help text
         self.help_text: QLabel = QLabel("Drag and Drop <br> Audiobooks", self)
-        self.help_text.move(self.rect().center() - self.help_text.rect().center())
         self.help_text.setStyleSheet("QLabel {font-size: 25px;\
                                               font-weight: bold;\
                                               qproperty-alignment: AlignCenter;\
                                               color: grey;}")
         self.create_tree(Audiobook().read_data())
         self.setCurrentItem(self.topLevelItem(0))
+        self.help_text.move(self.rect().center() - self.help_text.rect().center())
         self.audio_player: AudioPlayer = AudioPlayer(self)
         self.last_played_item: TreeWidgetItem | bool = False
 
@@ -97,7 +97,7 @@ class TreeWidget(QTreeWidget):
                     Audiobook().delete_data(dict(audiobook_keys=parent_items))
                 if child_items:
                     json_data: dict = Audiobook().delete_data(dict(files=child_items))
-                    self.parent_update_duration(json_data)
+                    self.parent_item_duration_update(json_data)
                 self.parent_item_counter_update()
         # walk up the treewidget items
         if event.key() == Qt.Key_Up:
@@ -174,6 +174,7 @@ class TreeWidget(QTreeWidget):
                 self.last_played_item = selected_items[0]
 
     def add_parent_item(self, audiobook_key: str) -> QTreeWidgetItem:
+        """Add parent item, to QTreeWidget with user inputs"""
         parent_item: TreeWidgetItem = TreeWidgetItem(dict(audiobook_key=audiobook_key,
                                                           parent=self))
         parent_item.setFlags(parent_item.flags() & ~Qt.ItemIsDragEnabled)
@@ -182,12 +183,14 @@ class TreeWidget(QTreeWidget):
         return parent_item
 
     def add_child_item(self, args: dict) -> None:
+        """Add child item to parent item"""
         child_item: TreeWidgetItem = TreeWidgetItem(args)
         child_item.setFlags(child_item.flags() & ~Qt.ItemIsDropEnabled)
         args["parent"].addChild(child_item)
         child_item.set_text(args)
 
     def create_tree(self, audiobook_data: dict) -> None:
+        """Populate QtreeWidget with parent and child items"""
         for e_audiobook in audiobook_data:
             # create parent item
             audiobook: TreeWidgetItem = self.add_parent_item(e_audiobook)
@@ -197,23 +200,23 @@ class TreeWidget(QTreeWidget):
                     continue
                 input_widget: (TextField | BookCover |
                                Label | ExportOptions | ToggleButton) = audiobook.user_inputs[input]
-                if isinstance(input_widget, TextField):
-                    input_widget.setText(audiobook_data[e_audiobook][input])
+                if isinstance(input_widget, ToggleButton):
+                    input_widget.toggle_color("DarkGreen" if audiobook_data[e_audiobook][input]
+                                                          else "DarkRed")
+                    input_widget.args["state"] = True if audiobook_data[e_audiobook][input] else False
+                    input_widget.args["function"] = self.parent_item_counter_update
                 elif isinstance(input_widget, BookCover):
                     if not audiobook_data[e_audiobook][input]:
                         continue
                     input_widget.cover.load(audiobook_data[e_audiobook][input])
                     input_widget.setPixmap(input_widget.cover.scaledToHeight(70))
                     input_widget.show_buttons(True)
-                elif isinstance(input_widget, Label):
-                    input_widget.setText(str(timedelta(seconds=audiobook_data[e_audiobook][input])))
+                elif isinstance(input_widget, TextField):
+                    input_widget.setText(audiobook_data[e_audiobook][input])
                 elif isinstance(input_widget, ExportOptions):
                     input_widget.setCurrentIndex(audiobook_data[e_audiobook][input])
-                elif isinstance(input_widget, ToggleButton):
-                    input_widget.toggle_color("DarkGreen" if audiobook_data[e_audiobook][input]
-                                                          else "DarkRed")
-                    input_widget.args["state"] = True if audiobook_data[e_audiobook][input] else False
-                    input_widget.args["function"] = self.parent_item_counter_update
+                elif isinstance(input_widget, Label):
+                    input_widget.setText(str(timedelta(seconds=audiobook_data[e_audiobook][input])))
             # add all files as children
             for eFile in audiobook_data[e_audiobook]["files"]:
                 self.add_child_item(dict(parent=audiobook,
@@ -223,6 +226,7 @@ class TreeWidget(QTreeWidget):
         self.parent_item_counter_update()
 
     def parent_item_counter_update(self) -> None:
+        """Update header active parent items counter"""
         root_item: QTreeWidgetItem = self.invisibleRootItem()
         parent_item_count: int = root_item.childCount()
         if not parent_item_count:
@@ -234,7 +238,7 @@ class TreeWidget(QTreeWidget):
             self.help_text.hide()
             self.setHeaderLabels([f"Audiobook ({parent_item_active}/{parent_item_count})", "Duration"])
 
-    def parent_update_duration(self, data: dict) -> None:
+    def parent_item_duration_update(self, data: dict) -> None:
         """Update all parent item durations"""
         root_item: QTreeWidgetItem = self.invisibleRootItem()
         for e_data in data.values():
@@ -245,21 +249,32 @@ class TreeWidget(QTreeWidget):
 
 
 class TreeWidgetItem(QTreeWidgetItem):
-    """Costum QTreeWidgetItem"""
+    """Costum QTreeWidgetItem
+    args: parent = QWidget
+          audiobook_key = audiobook key from json
+    """
     def __init__(self, args: dict) -> None:
         super().__init__()
         self.setFlags(Qt.ItemIsEnabled |
                       Qt.ItemIsSelectable |
                       Qt.ItemIsDropEnabled |
                       Qt.ItemIsDragEnabled)
+        # contains all user inputs
         self.user_inputs: dict = {}
+        # contains parent and audiobook key
         self.args: dict = args
 
     def set_text(self, args: dict) -> None:
+        """Set text for TreeWidgetItem childs
+        args:
+            file: str = filepath
+            duration: int = seconds
+        """
         self.setText(0, QFileInfo(args["file"]).fileName())
         self.setText(1, str(timedelta(seconds=round(args["duration"]))))
 
     def add_user_inputs(self) -> None:
+        """Creates a prent TreeWidgetItem with user inputs"""
         self.args["parent"].addTopLevelItem(self)
         # qwidget sets scale and style for column 0 & 1
         column0_style: QWidget = QWidget()
@@ -276,7 +291,7 @@ class TreeWidgetItem(QTreeWidgetItem):
                                                  border-bottom-right-radius: 10px;\
                                                  margin: 5px 5px 5px 0px;}")
         self.args["parent"].setItemWidget(self, 1, column1_style)
-        # audiobook editing widgets
+        # audiobook user input editing widgets
         activate_export: ToggleButton = ToggleButton(dict(name="",
                                                           parent=column0_style,
                                                           geometry=[0, 0, 20, 100],
@@ -327,11 +342,18 @@ class TreeWidgetItem(QTreeWidgetItem):
                                  "quality": book_quality,
                                  "duration": book_duration,
                                  "destination": book_export})
+        # button needs ability to edit all user inputs
         book_presets.args.update({"user_inputs": self.user_inputs})
 
 
 class PushButton(QPushButton):
-    """Costum QPushButton"""
+    """Costum QPushButton
+    args: parent = QWidget
+          geometry = [x, y, w, h]
+          name = displayed text
+          tip = displayed tooltip
+          action = empty (no action applied), or function
+    """
     def __init__(self, args: dict) -> None:
         super().__init__()
         self.setParent(args["parent"])
@@ -358,10 +380,11 @@ class PushButton(QPushButton):
         self.clicked.connect(args["action"])
 
     def empty(self):
-        """empty signal function to avoid errors"""
+        """Empty signal function to avoid errors"""
         pass
 
     def file_dialog(self):
+        """Show a system file dialog and set user input to select path"""
         main_window: QWidget = self.parent()
         if self.args["user_inputs"]["destination"].text():
             open_path: str = self.args["user_inputs"]["destination"].text()
@@ -374,7 +397,9 @@ class PushButton(QPushButton):
 
 
 class PresetMenu(QMenu):
-    """Costum QMenu"""
+    """Costum QMenu
+    args: user_inputs = dictionary with user inputs
+    """
     def __init__(self, args: dict) -> None:
         super().__init__()
         self.args: dict = args
@@ -385,6 +410,7 @@ class PresetMenu(QMenu):
         self.clear()
         self.addAction("Save", self.save_author_preset)
         self.addSeparator()
+        # get presets from json
         for each_preset in sorted(Preset().read_data()):
             self.addAction(PresetWidgetAction(dict(parent=self,
                                                    name=each_preset,
@@ -399,7 +425,11 @@ class PresetMenu(QMenu):
 
 
 class PresetWidgetAction(QWidgetAction):
-    """Costum QWidgetAction"""
+    """Costum QWidgetAction
+    args: parent = QWidget
+          name = displayed text
+          user_inputs = dictionary with user inputs
+    """
     def __init__(self, args: dict) -> None:
         super().__init__(args["parent"])
         self.container: QWidget = QWidget()
@@ -412,7 +442,7 @@ class PresetWidgetAction(QWidgetAction):
                                                          tip="Delete preset",
                                                          action=self.delete_author_preset))
         self.container.setStyleSheet("QPushButton {border: none;\
-                                              text-align: left;}\
+                                                   text-align: left;}\
                                       QPushButton:hover {background-color: rgb(0, 122, 255);}")
         self.grid_layout: QGridLayout = QGridLayout()
         self.grid_layout.addWidget(self.preset_button, 0, 0)
@@ -425,6 +455,7 @@ class PresetWidgetAction(QWidgetAction):
         self.args = args
 
     def apply_author_preset(self):
+        """Apply preset to user inputs"""
         data: dict = Preset().read_data()
         self.args["user_inputs"]["author"].setText(self.args["name"])
         for key, value in data[self.args["name"]].items():
@@ -435,12 +466,21 @@ class PresetWidgetAction(QWidgetAction):
                     widget.setCurrentIndex(value)
 
     def delete_author_preset(self):
+        """Delete preset from json and QMenu"""
         Preset().delete_data(self.args["name"])
         self.deleteLater()
 
 
 class ToggleButton(QPushButton):
-    """Costum Toggle QPushButton"""
+    """Costum Toggle QPushButton
+    args: parent = QWidget
+          geometry = [x, y, w, h]
+          name = displayed text
+          audiobook_key = audiobook key from json
+          state = toggle state of button
+          function = function to call
+
+    """
     def __init__(self, args: dict) -> None:
         super().__init__()
         self.setParent(args["parent"])
@@ -459,10 +499,12 @@ class ToggleButton(QPushButton):
         self.clicked.connect(self.toggle)
 
     def toggle_color(self, color: str) -> None:
+        """Change color of button with given color"""
         replace_color: str = self.styleSheet().split("background-color: ")[1].split(";")[0]
         self.setStyleSheet(self.styleSheet().replace(replace_color, color))
 
     def toggle(self) -> None:
+        """Update toggle state of button, change color, json and audiobook counter"""
         data: dict = Audiobook().read_data()
         audiobook_index: str = self.args["audiobook_key"]
         toggle_state: bool = data[audiobook_index]["export"]
@@ -474,7 +516,11 @@ class ToggleButton(QPushButton):
 
 
 class Label(QLabel):
-    """Costum QLabel"""
+    """Costum QLabel
+    args: parent = QWidget
+          geometry = [x, y, w, h]
+          text = displayed text
+    """
     def __init__(self, args: dict) -> None:
         super().__init__()
         self.setParent(args["parent"])
@@ -484,7 +530,10 @@ class Label(QLabel):
 
 
 class BookCover(QLabel):
-    """Costum QLabel to display artwork"""
+    """Costum QLabel to display artwork
+    args: parent = QWidget
+          audiobook_key = audiobook key from json
+    """
     def __init__(self, args: dict) -> None:
         super().__init__()
         self.setParent(args["parent"])
@@ -502,12 +551,14 @@ class BookCover(QLabel):
                                         border-radius: 10px;}")
         self.setAcceptDrops(True)
         self.cover: QPixmap = QPixmap()
+        # buttons are visible when cover image is displayed
         self.delete_button: PushButton = PushButton(dict(parent=self,
                                                          geometry=[60, 0, 20, 20],
                                                          name="\N{HEAVY MULTIPLICATION X}",
                                                          tip="Delete cover",
                                                          action=self.delete_cover))
         self.delete_button.setVisible(False)
+        # resize button is visible when cover image is not 1:1
         self.resize_button: PushButton = PushButton(dict(parent=self,
                                                          geometry=[60, 60, 20, 20],
                                                          name="\N{WARNING SIGN}",
@@ -517,17 +568,20 @@ class BookCover(QLabel):
         self.args: dict = args
 
     def show_buttons(self, state: bool) -> None:
+        """Set button visibility"""
         self.delete_button.setVisible(state)
         if self.cover.width() % self.cover.height():
             self.resize_button.setVisible(state)
 
     def delete_cover(self):
+        """Delete active cover image"""
         Audiobook().delete_data(dict(cover="Delete",
                                      audiobook_key=self.args["audiobook_key"]))
         self.show_buttons(False)
         self.setText(self.cover_text)
 
     def resize_cover(self):
+        """Squares 1:1 cover image"""
         path: str = Audiobook().resize_cover(self.args["audiobook_key"])
         self.cover.load(path)
         self.setPixmap(self.cover.scaledToHeight(70))
@@ -540,6 +594,7 @@ class BookCover(QLabel):
             super().dragEnterEvent(event)
 
     def dropEvent(self, event) -> None:
+        """Drop cover image into widget"""
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 self.cover.load(url.path())
@@ -555,7 +610,13 @@ class BookCover(QLabel):
 
 
 class TextField(QLineEdit):
-    """Costum QLineEdit"""
+    """Costum QLineEdit
+    args: parent = QWidget
+          geometry = [x, y, w, h]
+          name = displayed text
+          tip = displayed tooltip
+          audiobook_key = audiobook key from json
+    """
     def __init__(self, args: dict) -> None:
         super().__init__()
         self.setParent(args["parent"])
@@ -571,6 +632,7 @@ class TextField(QLineEdit):
         self.textChanged.connect(self.text_edited)
 
     def text_edited(self) -> None:
+        """User is editing textfields"""
         data: dict = Audiobook().read_data()
         audiobook_index: str = self.args["audiobook_key"]
         audiobook_input: str = self.args["name"].lower()
@@ -579,6 +641,13 @@ class TextField(QLineEdit):
 
 
 class ExportOptions(QComboBox):
+    """Custom QComboBox dropdown menu
+    args: parent = QWidget
+          geometry = [x, y, w, h]
+          tip = displayed tooltip
+          audiobook_key = audiobook key from json
+          options = list of quality options
+    """
     def __init__(self, args: dict) -> None:
         super().__init__()
         self.setParent(args["parent"])
@@ -594,6 +663,7 @@ class ExportOptions(QComboBox):
         self.currentIndexChanged.connect(self.index_changed)
 
     def index_changed(self) -> None:
+        """Update json when index is changed"""
         audiobook_index: str = self.args["audiobook_key"]
         data: dict = Audiobook().read_data()
         data[audiobook_index].update({"quality": self.currentIndex()})

@@ -71,7 +71,7 @@ class Audiobook():
         """Collects files from list, creates a dict and saves it to json"""
         files: list [str] = []
         json_data: dict = self.read_data()
-        audiobook_count: int = len(json_data)
+        # collect and sort all files
         for each_path in paths:
             # folders
             if QFileInfo(each_path.path()).isDir():
@@ -92,7 +92,7 @@ class Audiobook():
         for each_file in files:
             meta_data: dict = self.get_meta_data(each_file)
             if "audiobook_index" in self.data:
-                index: str = f"audiobook_{audiobook_count}"
+                index: str = f"audiobook_{len(json_data)}"
                 self.data.update({index: self.data.pop("audiobook_index")})
                 self.data[index].update({"title": meta_data["title"]})
                 self.data[index].update({"author": meta_data["author"]})
@@ -103,6 +103,7 @@ class Audiobook():
             self.data[index]["duration"] += meta_data["duration"]
             self.data[index]["files"].append(dict(file=each_file,
                                                   duration=meta_data["duration"]))
+        # try to apply existing author preset
         preset = Preset().auto_apply_data(", ".join([meta_data["title"],
                                                      meta_data["author"]]))
         if preset:
@@ -115,7 +116,9 @@ class Audiobook():
         return self.data
 
     def get_meta_data(self, path: str) -> dict:
-        """Read ID3 tags from mp3"""
+        """Read ID3 tags from mp3
+        title, author, duration
+        """
         audio_file = mutagen.File(path)
         meta_data: dict = {}
         for key, e_tag in [["title", "TALB"], ["author", "TPE1"]]:
@@ -217,7 +220,7 @@ class Audiobook():
         self.split_audiobooks()
         if not self.data_export:
             return
-        # Extra thread for export to aboid freeze
+        # Extra thread to aboid ui freeze
         export_thread: Thread = Thread(target=self.export_pool)
         export_thread.start()
 
@@ -229,7 +232,7 @@ class Audiobook():
     def export_audiobook(self, data: dict) -> None:
         """Main export function"""
         export_file: str = f"{data['destination']}/{data['title']}.m4b"
-        if not QFileInfo(export_file).exists():
+        if not QFileInfo(data['destination']).exists():
             export_file = f"{self.desktop_path}/{data['title']}.m4b"
         files: str = [e["file"] for e in data['files']]
         bitrate, channels, sample_rate = self.quality_presets[data['quality']].split(", ")
@@ -265,7 +268,9 @@ class Preset():
         return JsonIO.read(self.preset_json_path)
 
     def delete_data(self, key: str) -> dict:
-        """Delete data from json"""
+        """Delete data from json
+        args: key = name of preset
+        """
         json_data: dict = self.read_data()
         json_data.pop(key, None)
         self.save_data(json_data)
@@ -288,6 +293,7 @@ class Preset():
         if not preset_key:
             return {}
         sorted(preset_key, key=len)
+        # apply preset
         self.data.update({preset_key[0]: self.data.pop("author")})
         for key, value in json_data[preset_key[0]].items():
             self.data[preset_key[0]].update({key: value})
