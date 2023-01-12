@@ -231,6 +231,7 @@ class TreeWidget(QTreeWidget):
         parent_item_count: int = root_item.childCount()
         if not parent_item_count:
             self.help_text.show()
+            self.help_text.move(self.rect().center() - self.help_text.rect().center())
             self.setHeaderLabels(["Audiobook (0/0)", "Duration"])
         else:
             parent_item_active: int = len([root_item.child(i) for i in range(parent_item_count)
