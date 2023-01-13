@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (QWidget, QTreeWidget, QAbstractItemView, QTreeWidgetItem,
                                QLabel, QPushButton, QLineEdit, QComboBox, QFileDialog,
-                               QMenu, QWidgetAction, QGridLayout)
+                               QMenu, QWidgetAction, QGridLayout, QDialog)
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, QSize, QFileInfo, QStandardPaths
 from datetime import timedelta
@@ -201,9 +201,8 @@ class TreeWidget(QTreeWidget):
                 input_widget: (TextField | BookCover |
                                Label | ExportOptions | ToggleButton) = audiobook.user_inputs[input]
                 if isinstance(input_widget, ToggleButton):
-                    input_widget.toggle_color("DarkGreen" if audiobook_data[e_audiobook][input]
-                                                          else "DarkRed")
                     input_widget.args["state"] = True if audiobook_data[e_audiobook][input] else False
+                    input_widget.toggle_color()
                     input_widget.args["function"] = self.parent_item_counter_update
                 elif isinstance(input_widget, BookCover):
                     if not audiobook_data[e_audiobook][input]:
@@ -280,14 +279,14 @@ class TreeWidgetItem(QTreeWidgetItem):
         # qwidget sets scale and style for column 0 & 1
         column0_style: QWidget = QWidget()
         column0_style.setObjectName("c0")
-        column0_style.setStyleSheet("QWidget#c0 {background-color: DarkGray;\
+        column0_style.setStyleSheet("QWidget#c0 {background-color: rgba(200, 200, 200, 0.2);\
                                                  border-top-left-radius: 10px;\
                                                  border-bottom-left-radius: 10px;\
                                                  margin: 5px 0px 5px 0px;}")
         self.args["parent"].setItemWidget(self, 0, column0_style)
         column1_style: QWidget = QWidget()
         column1_style.setObjectName("c1")
-        column1_style.setStyleSheet("QWidget#c1 {background-color: DarkGray;\
+        column1_style.setStyleSheet("QWidget#c1 {background-color: rgba(200, 200, 200, 0.2);\
                                                  border-top-right-radius: 10px;\
                                                  border-bottom-right-radius: 10px;\
                                                  margin: 5px 5px 5px 0px;}")
@@ -488,21 +487,26 @@ class ToggleButton(QPushButton):
         self.setVisible(True)
         self.setGeometry(*args["geometry"])
         self.setText(args["name"])
-        self.setStyleSheet("QPushButton {background-color: DarkGreen;\
+        self.setStyleSheet("QPushButton {background-color: #439871;\
                                          border-top-left-radius: 10px;\
                                          border-bottom-left-radius: 10px;\
-                                         margin: 5px 5px 5px 0px;}")
+                                         margin: 5px 5px 5px 0px;}\
+                            QPushButton:hover {background-color: #43be71;}")
         self.setToolTip(args["tip"])
         self.args: dict = args
         self.args.update({"state": True,
                           "function": None})
+        self.colors: dict ={True: ["#439871", "#43be71"],
+                            False: ["#c03d43", "#ff3d43"]}
         # Signals
         self.clicked.connect(self.toggle)
 
-    def toggle_color(self, color: str) -> None:
+    def toggle_color(self) -> None:
         """Change color of button with given color"""
-        replace_color: str = self.styleSheet().split("background-color: ")[1].split(";")[0]
-        self.setStyleSheet(self.styleSheet().replace(replace_color, color))
+        toggle = [self.args["state"], False if self.args["state"] else True]
+        self.setStyleSheet(self.styleSheet().replace(self.colors[toggle[1]][0], self.colors[toggle[0]][0]))
+        self.setStyleSheet(self.styleSheet().replace(self.colors[toggle[1]][1], self.colors[toggle[0]][1]))
+
 
     def toggle(self) -> None:
         """Update toggle state of button, change color, json and audiobook counter"""
@@ -510,8 +514,8 @@ class ToggleButton(QPushButton):
         audiobook_index: str = self.args["audiobook_key"]
         toggle_state: bool = data[audiobook_index]["export"]
         data[audiobook_index].update({"export": False if toggle_state else True})
-        self.toggle_color("DarkRed" if toggle_state else "DarkGreen")
         self.args["state"] = False if toggle_state else True
+        self.toggle_color()
         self.args["function"]()
         Audiobook().save_data(data)
 
@@ -547,9 +551,11 @@ class BookCover(QLabel):
                                     font-size: 15px;\
                                     qproperty-alignment: AlignCenter;\
                                     color: grey;}\
-                            PushButton {background-color: rgba(255, 255, 255, 0);\
+                            PushButton {background-color: #c03d43;\
+                                        color: white;\
                                         font-weight: bold;\
-                                        border-radius: 10px;}")
+                                        border-radius: 10px;}\
+                            PushButton:hover {background-color: #ff3d43;}")
         self.setAcceptDrops(True)
         self.cover: QPixmap = QPixmap()
         # buttons are visible when cover image is displayed
@@ -625,9 +631,9 @@ class TextField(QLineEdit):
         self.setGeometry(*args["geometry"])
         self.setPlaceholderText(args["name"])
         self.setToolTip(args["tip"])
-        self.setStyleSheet("border-radius: 5px;\
-                            border: 2px solid grey;\
-                            background-color: DarkGray;")
+        self.setStyleSheet("QLineEdit {border-radius: 5px;\
+                                       border: 1px solid grey;\
+                                       background-color: transparent;}")
         self.args: dict = args
         # Signals
         self.textChanged.connect(self.text_edited)
@@ -656,9 +662,9 @@ class ExportOptions(QComboBox):
         self.setGeometry(*args["geometry"])
         self.addItems(args["options"])
         self.setToolTip("Change quality of an audiobook.")
-        self.setStyleSheet("border-radius: 5px;\
-                            border: 2px solid grey;\
-                            background-color: DarkGray;")
+        self.setStyleSheet("QComboBox {border-radius: 5px;\
+                                       border: 1px solid grey;\
+                                       background-color: transparent;}")
         self.args: dict = args
         # Signals
         self.currentIndexChanged.connect(self.index_changed)
@@ -669,3 +675,10 @@ class ExportOptions(QComboBox):
         data: dict = Audiobook().read_data()
         data[audiobook_index].update({"quality": self.currentIndex()})
         Audiobook().save_data(data)
+
+
+class PopUp(QDialog):
+    """Costum QDialog window"""
+    def __init__(self, args: dict):
+        super().__init__()
+        self.setParent(args["parents"])
