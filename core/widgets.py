@@ -437,19 +437,22 @@ class PresetWidgetAction(QWidgetAction):
                                                          parent=self.container,
                                                          tip="Apply preset",
                                                          action=self.apply_author_preset))
+        self.preset_button.setFixedSize(200, 20)
         self.delete_button: PushButton = PushButton(dict(name="\N{HEAVY MULTIPLICATION X}",
                                                          parent=self.container,
                                                          tip="Delete preset",
                                                          action=self.delete_author_preset))
+        self.delete_button.setFixedSize(20, 20)
         self.container.setStyleSheet("QPushButton {border: none;\
                                                    text-align: left;}\
-                                      QPushButton:hover {background-color: rgb(0, 122, 255);}")
+                                      QPushButton:hover {color: #ffffff;\
+                                                         background-color: #568dff;}")
+        self.delete_button.setStyleSheet("QPushButton {text-align: center}")
         self.grid_layout: QGridLayout = QGridLayout()
         self.grid_layout.addWidget(self.preset_button, 0, 0)
         self.grid_layout.addWidget(self.delete_button, 0, 1)
         self.grid_layout.setContentsMargins(18, 3, 5, 3)
         self.grid_layout.setSpacing(3)
-        self.grid_layout.setColumnMinimumWidth(0, 200)
         self.container.setLayout(self.grid_layout)
         self.setDefaultWidget(self.container)
         self.args = args
@@ -633,7 +636,8 @@ class TextField(QLineEdit):
         self.setToolTip(args["tip"])
         self.setStyleSheet("QLineEdit {border-radius: 5px;\
                                        border: 1px solid grey;\
-                                       background-color: transparent;}")
+                                       background-color: transparent;}\
+                            QLineEdit:focus {border: 2px solid #568dff;}")
         self.args: dict = args
         # Signals
         self.textChanged.connect(self.text_edited)
@@ -664,7 +668,8 @@ class ExportOptions(QComboBox):
         self.setToolTip("Change quality of an audiobook.")
         self.setStyleSheet("QComboBox {border-radius: 5px;\
                                        border: 1px solid grey;\
-                                       background-color: transparent;}")
+                                       background-color: transparent;\
+                                       selection-background-color: #568dff;}")
         self.args: dict = args
         # Signals
         self.currentIndexChanged.connect(self.index_changed)
@@ -679,6 +684,7 @@ class ExportOptions(QComboBox):
 
 class PopUp(QDialog):
     """Costum QDialog window"""
-    def __init__(self, args: dict):
+    def __init__(self, args: dict) -> None:
         super().__init__()
-        self.setParent(args["parents"])
+        self.setParent(args["parent"])
+        self.open()
