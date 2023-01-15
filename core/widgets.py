@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import (QWidget, QTreeWidget, QAbstractItemView, QTreeWidgetItem,
                                QLabel, QPushButton, QLineEdit, QComboBox, QFileDialog,
-                               QMenu, QWidgetAction, QGridLayout, QDialog)
+                               QMenu, QWidgetAction, QGridLayout, QDialog, QDialogButtonBox,
+                               QPlainTextEdit, QProgressBar)
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, QSize, QFileInfo, QStandardPaths
 from datetime import timedelta
@@ -371,10 +372,10 @@ class PushButton(QPushButton):
             elif args["action"] == "author_preset":
                 self.setStyleSheet("QPushButton::menu-indicator {width: 0px;}")
                 args["action"] = self.empty
-                self.author_menu: PresetMenu = PresetMenu(self.args)
+                self.author_menu: PresetMenu = PresetMenu(self.args,)
                 self.setMenu(self.author_menu)
             elif args["action"] == "export":
-                 args["action"] = Audiobook().export
+                 args["action"] = self.export
             else:
                 args["action"] = self.empty
         self.clicked.connect(args["action"])
@@ -382,6 +383,15 @@ class PushButton(QPushButton):
     def empty(self):
         """Empty signal function to avoid errors"""
         pass
+
+    def export(self):
+        audiobook = Audiobook()
+        dialog = Dialog(self.args["parent"]).export_ui()
+        audiobook.signals.progress_range.connect(lambda: dialog.progressbar.setRange(0, audiobook.progress_range))
+        audiobook.signals.progress_value.connect(lambda: dialog.progressbar.setValue(audiobook.progress_value))
+        audiobook.signals.export_file.connect(lambda: dialog.text.appendPlainText(audiobook.export_file))
+        audiobook.signals.unlock_ui.connect(lambda: dialog.buttonbox.setEnabled(audiobook.unlock_ui))
+        audiobook.export()
 
     def file_dialog(self):
         """Show a system file dialog and set user input to select path"""
@@ -682,9 +692,44 @@ class ExportOptions(QComboBox):
         Audiobook().save_data(data)
 
 
-class PopUp(QDialog):
+class Dialog(QDialog):
     """Costum QDialog window"""
-    def __init__(self, args: dict) -> None:
+    def __init__(self, parent: QWidget) -> None:
         super().__init__()
-        self.setParent(args["parent"])
+        self.setParent(parent)
+        self.buttonbox: QDialogButtonBox = QDialogButtonBox(QDialogButtonBox.Close)
+        self.buttonbox.rejected.connect(self.reject)
+        self.text: QPlainTextEdit = QPlainTextEdit()
+        self.text.setReadOnly(True)
+        self.grid_layout: QGridLayout = QGridLayout()
+        self.grid_layout.setContentsMargins(10, 10, 10, 10)
+        self.grid_layout.setSpacing(10)
+        self.setLayout(self.grid_layout)
+
+    def log_ui(self, msg: str):
+        """Warning and error dialog"""
+        self.text.appendPlainText(msg)
+        self.grid_layout.addWidget(self.text, 0, 0)
+        self.grid_layout.addWidget(self.buttonbox, 1, 0)
         self.open()
+
+    def export_ui(self):
+        """Export dialog"""
+        self.setWindowTitle("Export Audiobooks")
+        self.setFixedSize(700, 400)
+        self.buttonbox.setEnabled(False)
+        self.progressbar: QProgressBar = QProgressBar()
+        self.grid_layout.addWidget(self.progressbar, 0, 0)
+        self.grid_layout.addWidget(self.text, 1, 0)
+        self.grid_layout.addWidget(self.buttonbox, 2, 0)
+        self.open()
+        return self
+
+    def about_ui(self):
+        """App About dialog"""
+        self.open()
+
+    def keyPressEvent(self, event):
+        if self.buttonbox.isEnabled():
+            if event.key() == Qt.Key_Escape:
+                self.close()
