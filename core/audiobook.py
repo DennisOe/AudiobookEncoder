@@ -1,9 +1,10 @@
 import mutagen
 from mutagen.mp4 import MP4, MP4Cover
-from multiprocessing import Pool
+from multiprocessing.pool import ThreadPool
 from subprocess import Popen, PIPE, STDOUT
 from threading import Thread
-from PySide6.QtCore import QUrl, QSize, QFileInfo, QDirIterator, QStandardPaths, QThreadPool
+from PySide6.QtCore import (QUrl, QSize, QFileInfo, QDirIterator, QStandardPaths,
+                            QThreadPool, Signal, QObject)
 from PySide6.QtGui import QImage
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from jsonio  import JsonIO
@@ -12,6 +13,7 @@ from jsonio  import JsonIO
 class Audiobook():
     """Edit data, audiobook files and meta data"""
     def __init__(self) -> None:
+        super().__init__()
         self.audiobook_json_path: str = "AudiobookEncoder/core/audiobooks.json"
         self.abbinder_path: str = "AudiobookEncoder/core/abbinder"
         self.desktop_path: str = QStandardPaths.standardLocations(QStandardPaths.DesktopLocation)[0]
@@ -35,6 +37,47 @@ class Audiobook():
                                                "12h": 43200,
                                                "10h": 36000}
         self.data_export: dict = {}
+        self.signals: CostumSignals = CostumSignals()
+        self._export_file: str = ""
+        self._progress_range: int = 0
+        self._progress_value: int = 0
+        self._unlock_ui: bool = False
+
+    @property
+    def export_file(self) -> str:
+        return self._export_file
+
+    @export_file.setter
+    def export_file(self, file: str):
+        self._export_file = file
+        self.signals.export_file.emit(file)
+
+    @property
+    def progress_range(self) -> int:
+        return self._progress_range
+
+    @progress_range.setter
+    def progress_range(self, p_range: int):
+        self._progress_range = p_range
+        self.signals.progress_range.emit(p_range)
+
+    @property
+    def progress_value(self) -> int:
+        return self._progress_value
+
+    @progress_value.setter
+    def progress_value(self, value: int):
+        self._progress_value = value
+        self.signals.progress_value.emit(value)
+
+    @property
+    def unlock_ui(self) -> bool:
+        return self._unlock_ui
+
+    @unlock_ui.setter
+    def unlock_ui(self, lock: bool):
+        self._unlock_ui = lock
+        self.signals.unlock_ui.emit(lock)
 
     def save_data(self, data: dict) -> dict:
         """Save user added data to json"""
@@ -220,14 +263,19 @@ class Audiobook():
         self.split_audiobooks()
         if not self.data_export:
             return
+        self.unlock_ui = False
+        self.progress_range = len(self.data_export)
+        self.export_file = "Start Exporting...\n"
         # Extra thread to aboid ui freeze
         export_thread: Thread = Thread(target=self.export_pool)
         export_thread.start()
 
     def export_pool(self) -> None:
         """Multiprocessing depending on cpu cores"""
-        with Pool(QThreadPool().maxThreadCount()) as export_pool:
+        with ThreadPool(QThreadPool().maxThreadCount()) as export_pool:
             export_pool.map(self.export_audiobook, self.data_export.values())
+        self.export_file = "\nDone..."
+        self.unlock_ui = True
 
     def export_audiobook(self, data: dict) -> None:
         """Main export function"""
@@ -248,6 +296,8 @@ class Audiobook():
         process: Popen = Popen(abbinder_cmd, stdout=PIPE, stderr=STDOUT)
         _stdout, _stderr = process.communicate()
         self.set_meta_data(export_file, data)
+        self.export_file = export_file
+        self.progress_value += 1
 
 
 class Preset():
@@ -332,3 +382,10 @@ class AudioPlayer(QMediaPlayer):
            not QFileInfo(path).exists()):
             return False
         return True
+
+
+class CostumSignals(QObject):
+    export_file = Signal(str)
+    progress_range = Signal(int)
+    progress_value = Signal(int)
+    unlock_ui = Signal(bool)
