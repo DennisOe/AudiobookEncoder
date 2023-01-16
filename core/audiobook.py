@@ -1,4 +1,5 @@
-import mutagen
+from mutagen.easymp4 import EasyMP4
+from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4, MP4Cover
 from multiprocessing.pool import ThreadPool
 from subprocess import Popen, PIPE, STDOUT
@@ -37,10 +38,11 @@ class Audiobook():
                                                "12h": 43200,
                                                "10h": 36000}
         self.data_export: dict = {}
+        # export signal attributes
         self.signals: CostumSignals = CostumSignals()
-        self._export_file: str = ""
         self._progress_range: int = 0
         self._progress_value: int = 0
+        self._export_file: str = ""
         self._unlock_ui: bool = False
 
     @property
@@ -48,7 +50,7 @@ class Audiobook():
         return self._export_file
 
     @export_file.setter
-    def export_file(self, file: str):
+    def export_file(self, file: str) -> None:
         self._export_file = file
         self.signals.export_file.emit(file)
 
@@ -57,7 +59,7 @@ class Audiobook():
         return self._progress_range
 
     @progress_range.setter
-    def progress_range(self, p_range: int):
+    def progress_range(self, p_range: int) -> None:
         self._progress_range = p_range
         self.signals.progress_range.emit(p_range)
 
@@ -66,7 +68,7 @@ class Audiobook():
         return self._progress_value
 
     @progress_value.setter
-    def progress_value(self, value: int):
+    def progress_value(self, value: int) -> None:
         self._progress_value = value
         self.signals.progress_value.emit(value)
 
@@ -75,7 +77,7 @@ class Audiobook():
         return self._unlock_ui
 
     @unlock_ui.setter
-    def unlock_ui(self, lock: bool):
+    def unlock_ui(self, lock: bool) -> None:
         self._unlock_ui = lock
         self.signals.unlock_ui.emit(lock)
 
@@ -147,10 +149,10 @@ class Audiobook():
             self.data[index]["files"].append(dict(file=each_file,
                                                   duration=meta_data["duration"]))
         # try to apply existing author preset
-        preset = Preset().auto_apply_data(", ".join([meta_data["title"],
-                                                     meta_data["author"]]))
+        preset: Preset = Preset().auto_apply_data(", ".join([meta_data["title"],
+                                                             meta_data["author"]]))
         if preset:
-            author = list(preset.keys())[0]
+            author: list[str] = list(preset.keys())[0]
             self.data[index].update({"author": author})
             for key, value in preset[author].items():
                 self.data[index].update({key: value})
@@ -162,7 +164,7 @@ class Audiobook():
         """Read ID3 tags from mp3
         title, author, duration
         """
-        audio_file = mutagen.File(path)
+        audio_file: MP3 = MP3(path)
         meta_data: dict = {}
         for key, e_tag in [["title", "TALB"], ["author", "TPE1"]]:
             if not e_tag in audio_file:
@@ -174,7 +176,7 @@ class Audiobook():
 
     def get_meta_cover(self, path: str, audiobook_key: str) -> str:
         """Extract and save ID3 cover from mp3"""
-        audio_file = mutagen.File(path)
+        audio_file: MP3 = MP3(path)
         cover_key: list[str] = [key for key in audio_file if "APIC:" in key.upper()]
         if not cover_key:
             return ""
@@ -201,7 +203,7 @@ class Audiobook():
 
     def set_meta_data(self, path: str,  data: dict) -> None:
         """Save meta tags to m4b"""
-        audio_file = mutagen.File(path, easy=True)
+        audio_file: EasyMP4 = EasyMP4(path)
         # set metadata
         audio_file["title"] = data["title"]
         audio_file["album"] = data["title"].split(" Part")[0]
@@ -216,7 +218,7 @@ class Audiobook():
             audio_file.save()
 
     def split_audiobooks(self) -> None:
-        """Split audiobooks into 13h parts"""
+        """Split audiobooks into XXh parts"""
         json_data: dict = self.read_data()
         for e_key, e_data in json_data.items():
             if not e_data["export"]:
@@ -228,11 +230,11 @@ class Audiobook():
             duration: int = 0
             # change audiobook_1 key if exists
             audiobook_key: str = f"{e_key[:-1]}{key_index}" if e_key in self.data_export else e_key
-            # audiobook LESS then 24h
+            # audiobook LESS then XXh
             if e_data["duration"] <= self.split_duration["24h"]:
                 self.data_export.update({audiobook_key: e_data})
                 continue
-            # audiobook MORE then 24h
+            # audiobook MORE then XXh
             # split files in parts
             for e_file in e_data["files"]:
                 if sum([duration, e_file["duration"]]) <= self.split_duration["24h"]:
@@ -262,11 +264,13 @@ class Audiobook():
         self.data_export.clear()
         self.split_audiobooks()
         if not self.data_export:
+            self.unlock_ui = True
+            self.export_file = "Nothing to export...\n"
             return
         self.unlock_ui = False
         self.progress_range = len(self.data_export)
-        self.export_file = "Start Exporting...\n"
-        # Extra thread to aboid ui freeze
+        self.export_file = "Start exporting...\n"
+        # Extra thread to avoid ui freeze
         export_thread: Thread = Thread(target=self.export_pool)
         export_thread.start()
 
@@ -274,7 +278,7 @@ class Audiobook():
         """Multiprocessing depending on cpu cores"""
         with ThreadPool(QThreadPool().maxThreadCount()) as export_pool:
             export_pool.map(self.export_audiobook, self.data_export.values())
-        self.export_file = "\nDone..."
+        self.export_file = "\nDone exporting..."
         self.unlock_ui = True
 
     def export_audiobook(self, data: dict) -> None:
@@ -339,7 +343,7 @@ class Preset():
     def auto_apply_data(self, meta_data: str) -> dict:
         """Compares data keys with meta data to auto apply a preset"""
         json_data: dict = self.read_data()
-        preset_key = [e_key for e_key in json_data.keys() if e_key in meta_data]
+        preset_key: list[str] = [e_key for e_key in json_data.keys() if e_key in meta_data]
         if not preset_key:
             return {}
         sorted(preset_key, key=len)
@@ -385,6 +389,7 @@ class AudioPlayer(QMediaPlayer):
 
 
 class CostumSignals(QObject):
+    """Costum signals for widgets to connect to"""
     export_file = Signal(str)
     progress_range = Signal(int)
     progress_value = Signal(int)
