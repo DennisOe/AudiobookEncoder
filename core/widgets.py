@@ -1,18 +1,19 @@
 from PySide6.QtWidgets import (QWidget, QTreeWidget, QAbstractItemView, QTreeWidgetItem,
                                QLabel, QPushButton, QLineEdit, QComboBox, QFileDialog,
                                QMenu, QWidgetAction, QGridLayout, QDialog, QDialogButtonBox,
-                               QPlainTextEdit, QProgressBar)
+                               QPlainTextEdit, QProgressBar, QHeaderView)
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, QSize, QFileInfo, QStandardPaths
 from datetime import timedelta
 from audiobook import Audiobook, Preset, AudioPlayer
+from typing import Self
+
 
 
 class TreeWidget(QTreeWidget):
     """Costum QTreeWidget"""
     def __init__(self, args: dict) -> None:
         super().__init__()
-        self.setParent(args["parent"])
         self.setGeometry(*args["geometry"])
         self.setHeaderLabels(["Audiobook (0/0)", "Duration"])
         self.header().resizeSection(0, args["geometry"][2]-110)
@@ -83,7 +84,7 @@ class TreeWidget(QTreeWidget):
         if (event.modifiers() == Qt.ControlModifier and
             event.key() == Qt.Key_Backspace):
                 parent_items: list[str] = []
-                child_items: dict[str, str] = []
+                child_items: list[dict] = []
                 for each_item in self.selectedItems():
                     if not each_item.text(0):
                         # delete parent items
@@ -140,7 +141,7 @@ class TreeWidget(QTreeWidget):
         if event.key() == Qt.Key_Left:
             selected_items: list[TreeWidgetItem] = self.selectedItems()
             self.clearSelection()
-            items_to_collapse: list = []
+            items_to_collapse: list[TreeWidgetItem] = []
             for each_item in selected_items:
                 if each_item.text(0):
                     # child item widgets
@@ -202,9 +203,9 @@ class TreeWidget(QTreeWidget):
                 input_widget: (TextField | BookCover |
                                Label | ExportOptions | ToggleButton) = audiobook.user_inputs[input]
                 if isinstance(input_widget, ToggleButton):
-                    input_widget.args["state"] = True if audiobook_data[e_audiobook][input] else False
+                    input_widget.args.update({"state": True if audiobook_data[e_audiobook][input] else False})
                     input_widget.toggle_color()
-                    input_widget.args["function"] = self.parent_item_counter_update
+                    input_widget.args.update({"function": self.parent_item_counter_update})
                 elif isinstance(input_widget, BookCover):
                     if not audiobook_data[e_audiobook][input]:
                         continue
@@ -357,10 +358,17 @@ class PushButton(QPushButton):
     """
     def __init__(self, args: dict) -> None:
         super().__init__()
-        self.setParent(args["parent"])
+        if "parent" in args:
+            self.setParent(args["parent"])
         self.setVisible(True)
-        if "geometry" in args.keys():
+        if "geometry" in args:
             self.setGeometry(*args["geometry"])
+        if "fixed_size" in args:
+            self.setFixedSize(*args["fixed_size"])
+        if "fixed_width" in args:
+            self.setFixedWidth(args["fixed_width"])
+        if "fixed_height" in args:
+            self.setFixedHeight(args["fixed_height"])
         self.setText(args["name"] if len(args["name"]) <= 35 else f"{args['name'][:30]}…")
         self.setToolTip(args["tip"])
         self.args: dict = args
@@ -368,16 +376,16 @@ class PushButton(QPushButton):
         # Signals
         if isinstance(args["action"], str):
             if args["action"] == "file_dialog":
-                args["action"] = self.file_dialog
+                args.update({"action": self.file_dialog})
             elif args["action"] == "author_preset":
                 self.setStyleSheet("QPushButton::menu-indicator {width: 0px;}")
-                args["action"] = self.empty
+                args.update({"action": self.empty})
                 self.author_menu: PresetMenu = PresetMenu(self.args,)
                 self.setMenu(self.author_menu)
             elif args["action"] == "export":
-                 args["action"] = self.export
+                 args.update({"action": self.export})
             else:
-                args["action"] = self.empty
+                args.update({"action": self.empty})
         self.clicked.connect(args["action"])
 
     def empty(self):
@@ -385,12 +393,16 @@ class PushButton(QPushButton):
         pass
 
     def export(self):
-        audiobook = Audiobook()
-        dialog = Dialog(self.args["parent"]).export_ui()
+        """Export all Audiobooks"""
+        audiobook: Audiobook = Audiobook()
+        # open export dialog
+        dialog: Dialog = Dialog(self.args["parent"]).export_ui()
+        # connect export signals to dialog
         audiobook.signals.progress_range.connect(lambda: dialog.progressbar.setRange(0, audiobook.progress_range))
         audiobook.signals.progress_value.connect(lambda: dialog.progressbar.setValue(audiobook.progress_value))
         audiobook.signals.export_file.connect(lambda: dialog.text.appendPlainText(audiobook.export_file))
         audiobook.signals.unlock_ui.connect(lambda: dialog.buttonbox.setEnabled(audiobook.unlock_ui))
+        # export function
         audiobook.export()
 
     def file_dialog(self):
@@ -444,28 +456,25 @@ class PresetWidgetAction(QWidgetAction):
         super().__init__(args["parent"])
         self.container: QWidget = QWidget()
         self.preset_button: PushButton = PushButton(dict(name=args["name"],
-                                                         parent=self.container,
+                                                         fixed_size=[200, 20],
                                                          tip="Apply preset",
                                                          action=self.apply_author_preset))
-        self.preset_button.setFixedSize(200, 20)
         self.delete_button: PushButton = PushButton(dict(name="\N{HEAVY MULTIPLICATION X}",
-                                                         parent=self.container,
+                                                         fixed_size=[20, 20],
                                                          tip="Delete preset",
                                                          action=self.delete_author_preset))
-        self.delete_button.setFixedSize(20, 20)
         self.container.setStyleSheet("QPushButton {border: none;\
                                                    text-align: left;}\
                                       QPushButton:hover {color: #ffffff;\
                                                          background-color: #568dff;}")
         self.delete_button.setStyleSheet("QPushButton {text-align: center}")
-        self.grid_layout: QGridLayout = QGridLayout()
+        self.grid_layout: GridLayout = GridLayout(dict(parent=self.container,
+                                                       margins=[18, 3, 5, 3],
+                                                       spacing=3))
         self.grid_layout.addWidget(self.preset_button, 0, 0)
         self.grid_layout.addWidget(self.delete_button, 0, 1)
-        self.grid_layout.setContentsMargins(18, 3, 5, 3)
-        self.grid_layout.setSpacing(3)
-        self.container.setLayout(self.grid_layout)
         self.setDefaultWidget(self.container)
-        self.args = args
+        self.args: dict = args
 
     def apply_author_preset(self):
         """Apply preset to user inputs"""
@@ -492,7 +501,6 @@ class ToggleButton(QPushButton):
           audiobook_key = audiobook key from json
           state = toggle state of button
           function = function to call
-
     """
     def __init__(self, args: dict) -> None:
         super().__init__()
@@ -516,7 +524,7 @@ class ToggleButton(QPushButton):
 
     def toggle_color(self) -> None:
         """Change color of button with given color"""
-        toggle = [self.args["state"], False if self.args["state"] else True]
+        toggle: list(bool, bool) = [self.args["state"], False if self.args["state"] else True]
         self.setStyleSheet(self.styleSheet().replace(self.colors[toggle[1]][0], self.colors[toggle[0]][0]))
         self.setStyleSheet(self.styleSheet().replace(self.colors[toggle[1]][1], self.colors[toggle[0]][1]))
 
@@ -701,19 +709,19 @@ class Dialog(QDialog):
         self.buttonbox.rejected.connect(self.reject)
         self.text: QPlainTextEdit = QPlainTextEdit()
         self.text.setReadOnly(True)
-        self.grid_layout: QGridLayout = QGridLayout()
-        self.grid_layout.setContentsMargins(10, 10, 10, 10)
-        self.grid_layout.setSpacing(10)
-        self.setLayout(self.grid_layout)
+        self.grid_layout: GridLayout = GridLayout(dict(parent=self,
+                                                       margins=[10, 10, 10, 10],
+                                                       spacing=10))
 
-    def log_ui(self, msg: str):
+    def log_ui(self, msg: str) -> Self:
         """Warning and error dialog"""
         self.text.appendPlainText(msg)
         self.grid_layout.addWidget(self.text, 0, 0)
         self.grid_layout.addWidget(self.buttonbox, 1, 0)
         self.open()
+        return self
 
-    def export_ui(self):
+    def export_ui(self) -> Self:
         """Export dialog"""
         self.setWindowTitle("Export Audiobooks")
         self.setFixedSize(700, 400)
@@ -725,11 +733,24 @@ class Dialog(QDialog):
         self.open()
         return self
 
-    def about_ui(self):
+    def about_ui(self) -> Self:
         """App About dialog"""
         self.open()
+        return self
 
     def keyPressEvent(self, event):
         if self.buttonbox.isEnabled():
             if event.key() == Qt.Key_Escape:
                 self.close()
+
+class GridLayout(QGridLayout):
+    """Costum QGridLayout
+    args: parent = QWidget
+          margins = [l, t, r, b]
+          spacing = int pixel
+    """
+    def __init__(self, args: dict) -> None:
+        super().__init__()
+        self.setContentsMargins(*args["margins"])
+        self.setSpacing(args["spacing"])
+        args["parent"].setLayout(self)
