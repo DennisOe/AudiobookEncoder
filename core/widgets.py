@@ -297,7 +297,7 @@ class TreeWidgetItem(QTreeWidgetItem):
         activate_export: ToggleButton = ToggleButton(dict(name="",
                                                           parent=column0_style,
                                                           geometry=[0, 0, 20, 100],
-                                                          tip="",
+                                                          tip="Activate audiobook for export",
                                                           action="",
                                                           audiobook_key=self.args["audiobook_key"]))
         book_cover: BookCover = BookCover(dict(parent=column0_style,
@@ -315,7 +315,7 @@ class TreeWidgetItem(QTreeWidgetItem):
         book_presets: PushButton = PushButton(dict(name="\N{BLACK STAR}",
                                                    parent=column0_style,
                                                    geometry=[665, 17, 25, 30],
-                                                   tip="",
+                                                   tip="Apply author presets",
                                                    action="author_preset",
                                                    user_inputs=dict()))
         book_quality: ExportOptions = ExportOptions(dict(options=Audiobook().quality_presets,
@@ -323,14 +323,14 @@ class TreeWidgetItem(QTreeWidgetItem):
                                                          geometry=[110, 55, 270, 25],
                                                          audiobook_key=self.args["audiobook_key"]))
         book_export: TextField = TextField(dict(name="Destination",
-                                                tip="Export Destination",
+                                                tip="Export destination",
                                                 parent=column0_style,
                                                 geometry=[390, 55, 270, 25],
                                                 audiobook_key=self.args["audiobook_key"]))
         file_browser: PushButton = PushButton(dict(name="\N{LOWER SEVEN EIGHTHS BLOCK}",
                                                    parent=column0_style,
                                                    geometry=[665, 53, 25, 30],
-                                                   tip="",
+                                                   tip="Open file browser",
                                                    action="file_dialog",
                                                    user_inputs=dict(destination=book_export)))
         book_duration: Label = Label(dict(text="Duration",
@@ -352,6 +352,9 @@ class PushButton(QPushButton):
     """Costum QPushButton
     args: parent = QWidget
           geometry = [x, y, w, h]
+          fixed_size = [w, h]
+          fixed_width = int in pixel
+          fixed_height = int in pixel
           name = displayed text
           tip = displayed tooltip
           action = empty (no action applied), or function
@@ -388,11 +391,11 @@ class PushButton(QPushButton):
                 args.update({"action": self.empty})
         self.clicked.connect(args["action"])
 
-    def empty(self):
+    def empty(self) -> None:
         """Empty signal function to avoid errors"""
         pass
 
-    def export(self):
+    def export(self) -> None:
         """Export all Audiobooks"""
         audiobook: Audiobook = Audiobook()
         # open export dialog
@@ -405,7 +408,7 @@ class PushButton(QPushButton):
         # export function
         audiobook.export()
 
-    def file_dialog(self):
+    def file_dialog(self) -> None:
         """Show a system file dialog and set user input to select path"""
         main_window: QWidget = self.parent()
         if self.args["user_inputs"]["destination"].text():
@@ -476,7 +479,7 @@ class PresetWidgetAction(QWidgetAction):
         self.setDefaultWidget(self.container)
         self.args: dict = args
 
-    def apply_author_preset(self):
+    def apply_author_preset(self) -> None:
         """Apply preset to user inputs"""
         data: dict = Preset().read_data()
         self.args["user_inputs"]["author"].setText(self.args["name"])
@@ -487,7 +490,7 @@ class PresetWidgetAction(QWidgetAction):
             elif isinstance(widget, ExportOptions):
                     widget.setCurrentIndex(value)
 
-    def delete_author_preset(self):
+    def delete_author_preset(self) -> None:
         """Delete preset from json and QMenu"""
         Preset().delete_data(self.args["name"])
         self.deleteLater()
@@ -601,14 +604,14 @@ class BookCover(QLabel):
         if self.cover.width() % self.cover.height():
             self.resize_button.setVisible(state)
 
-    def delete_cover(self):
+    def delete_cover(self) -> None:
         """Delete active cover image"""
         Audiobook().delete_data(dict(cover="Delete",
                                      audiobook_key=self.args["audiobook_key"]))
         self.show_buttons(False)
         self.setText(self.cover_text)
 
-    def resize_cover(self):
+    def resize_cover(self) -> None:
         """Squares 1:1 cover image"""
         path: str = Audiobook().resize_cover(self.args["audiobook_key"])
         self.cover.load(path)
@@ -683,7 +686,7 @@ class ExportOptions(QComboBox):
         self.setVisible(True)
         self.setGeometry(*args["geometry"])
         self.addItems(args["options"])
-        self.setToolTip("Change quality of an audiobook.")
+        self.setToolTip("Change export quality")
         self.setStyleSheet("QComboBox {border-radius: 5px;\
                                        border: 1px solid grey;\
                                        background-color: transparent;\
@@ -738,7 +741,7 @@ class Dialog(QDialog):
         self.open()
         return self
 
-    def keyPressEvent(self, event):
+    def keyPressEvent(self, event) -> None:
         if self.buttonbox.isEnabled():
             if event.key() == Qt.Key_Escape:
                 self.close()
