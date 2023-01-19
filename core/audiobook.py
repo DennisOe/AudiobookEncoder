@@ -1,3 +1,4 @@
+import time, random
 from mutagen.easymp4 import EasyMP4
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4, MP4Cover
@@ -5,7 +6,7 @@ from multiprocessing.pool import ThreadPool
 from subprocess import Popen, PIPE, STDOUT
 from threading import Thread
 from PySide6.QtCore import (QUrl, QSize, QFileInfo, QDirIterator, QStandardPaths,
-                            QThreadPool, Signal, QObject)
+                            QThreadPool, Signal, QObject, QTimer)
 from PySide6.QtGui import QImage
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from jsonio  import JsonIO
@@ -44,16 +45,6 @@ class Audiobook():
         self._progress_value: int = 0
         self._export_file: str = ""
         self._unlock_ui: bool = False
-        self._error_msg: str = ""
-
-    @property
-    def error_msg(self) -> str:
-        return self._error_msg
-
-    @error_msg.setter
-    def error_msg(self, msg: str) -> None:
-        self._error_msg = msg
-        self.signals.error_msg.emit(msg)
 
     @property
     def export_file(self) -> str:
@@ -142,7 +133,6 @@ class Audiobook():
                 files.append(each_path.path())
         files.sort()
         if not files:
-            self.error_msg = "Only MP3s are allowed. No files have been added."
             return {}
         # add meta data to json
         for each_file in files:
@@ -276,11 +266,11 @@ class Audiobook():
         self.split_audiobooks()
         if not self.data_export:
             self.unlock_ui = True
-            self.export_file = "Nothing to export...\n"
+            self.export_file = "Nothing to export…\n"
             return
         self.unlock_ui = False
         self.progress_range = len(self.data_export)
-        self.export_file = "Start exporting {self.progress_range} file(s)...\n"
+        self.export_file = f"Start exporting {self.progress_range} file(s)…\n"
         # Extra thread to avoid ui freeze
         export_thread: Thread = Thread(target=self.export_pool)
         export_thread.start()
@@ -289,11 +279,13 @@ class Audiobook():
         """Multiprocessing depending on cpu cores"""
         with ThreadPool(QThreadPool().maxThreadCount()) as export_pool:
             export_pool.map(self.export_audiobook, self.data_export.values())
-        self.export_file = "\nDone exporting..."
+        self.export_file = "Done exporting…\n"
         self.unlock_ui = True
 
     def export_audiobook(self, data: dict) -> None:
         """Main export function"""
+        time.sleep(random.uniform(0.01, 1.0))
+        self.export_file = f"%  STARTED --> {data['title']}\n"
         export_file: str = f"{data['destination']}/{data['title']}.m4b"
         if not QFileInfo(data['destination']).exists():
             export_file = f"{self.desktop_path}/{data['title']}.m4b"
@@ -311,7 +303,7 @@ class Audiobook():
         process: Popen = Popen(abbinder_cmd, stdout=PIPE, stderr=STDOUT)
         _stdout, _stderr = process.communicate()
         self.set_meta_data(export_file, data)
-        self.export_file = export_file
+        self.export_file = f"%  DONE --> {data['title']}\n"
         self.progress_value += 1
 
 
@@ -405,4 +397,3 @@ class CostumSignals(QObject):
     progress_range = Signal(int)
     progress_value = Signal(int)
     unlock_ui = Signal(bool)
-    error_msg = Signal(str)
