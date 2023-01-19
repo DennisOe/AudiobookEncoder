@@ -2,8 +2,8 @@ from PySide6.QtWidgets import (QWidget, QTreeWidget, QAbstractItemView, QTreeWid
                                QLabel, QPushButton, QLineEdit, QComboBox, QFileDialog,
                                QMenu, QWidgetAction, QGridLayout, QDialog, QDialogButtonBox,
                                QPlainTextEdit, QProgressBar)
-from PySide6.QtGui import QPixmap, QImageWriter
-from PySide6.QtCore import Qt, QSize, QFileInfo, QStandardPaths
+from PySide6.QtGui import QPixmap, QImageWriter, QDesktopServices
+from PySide6.QtCore import Qt, QSize, QFileInfo, QStandardPaths, QDateTime, QUrl, QDir
 from datetime import timedelta
 from audiobook import Audiobook, Preset, AudioPlayer
 from typing import Self
@@ -29,12 +29,9 @@ class TreeWidget(QTreeWidget):
                                               font-weight: bold;\
                                               qproperty-alignment: AlignCenter;\
                                               color: grey;}")
-        self.audiobook: Audiobook = Audiobook()
-        self.create_tree(self.audiobook.read_data())
+        self.create_tree(Audiobook().read_data())
         self.setCurrentItem(self.topLevelItem(0))
         self.help_text.move(self.rect().center() - self.help_text.rect().center())
-        self.dialog: Dialog = Dialog(self)
-        self.audiobook.signals.error_msg.connect(lambda: self.dialog.log_ui(self.audiobook.error_msg))
         self.audio_player: AudioPlayer = AudioPlayer(self)
         self.last_played_item: TreeWidgetItem | bool = False
 
@@ -62,8 +59,9 @@ class TreeWidget(QTreeWidget):
     def dropEvent(self, event) -> None:
         """Drop QTreeItemWidgets, folders or files into widget"""
         if event.mimeData().hasUrls():
-            data: dict = self.audiobook.get_data(event.mimeData().urls())
+            data: dict = Audiobook().get_data(event.mimeData().urls())
             if not data:
+                Dialog(self).log_ui("Only MP3s are allowed. No files have been added.")
                 return
             self.create_tree(data)
         else:
@@ -71,7 +69,7 @@ class TreeWidget(QTreeWidget):
             # get indices of selected QTreeWidgetItems before drop event
             indices: int = [self.indexFromItem(i).row() for i in items]
             super().dropEvent(event)
-            json_data: dict = self.audiobook.read_data()
+            json_data: dict = Audiobook().read_data()
             # get files from json by indices
             files: list[dict] = [json_data[items[0].args["audiobook_key"]]["files"][index] for index in indices]
             # delete files from json
@@ -79,7 +77,7 @@ class TreeWidget(QTreeWidget):
             dropped_index: int = self.indexFromItem(items[0]).row()
             # insert files in json at new QTreeWidget index
             json_data[items[0].args["audiobook_key"]]["files"][dropped_index:dropped_index] = files
-            self.audiobook.save_data(json_data)
+            Audiobook().save_data(json_data)
 
     def keyPressEvent(self, event) -> None:
         parent_item_count: int = self.invisibleRootItem().childCount()
@@ -99,9 +97,9 @@ class TreeWidget(QTreeWidget):
                     child_items.append(dict(audiobook_key=each_item.args["audiobook_key"],
                                             file=each_item.text(0)))
                 if parent_items:
-                    self.audiobook.delete_data(dict(audiobook_keys=parent_items))
+                    Audiobook().delete_data(dict(audiobook_keys=parent_items))
                 if child_items:
-                    json_data: dict = self.audiobook.delete_data(dict(files=child_items))
+                    json_data: dict = Audiobook().delete_data(dict(files=child_items))
                     self.parent_item_duration_update(json_data)
                 self.parent_item_counter_update()
         # walk up the treewidget items
@@ -268,7 +266,6 @@ class TreeWidgetItem(QTreeWidgetItem):
         self.user_inputs: dict = {}
         # contains parent and audiobook key
         self.args: dict = args
-        self.audiobook: Audiobook = Audiobook()
 
     def set_text(self, args: dict) -> None:
         """Set text for TreeWidgetItem childs
@@ -322,7 +319,7 @@ class TreeWidgetItem(QTreeWidgetItem):
                                                    tip="Apply author presets",
                                                    action="author_preset",
                                                    user_inputs=dict()))
-        book_quality: ExportOptions = ExportOptions(dict(options=self.audiobook.quality_presets,
+        book_quality: ExportOptions = ExportOptions(dict(options=Audiobook().quality_presets,
                                                          parent=column0_style,
                                                          geometry=[110, 55, 270, 25],
                                                          audiobook_key=self.args["audiobook_key"]))
@@ -380,7 +377,6 @@ class PushButton(QPushButton):
         self.setToolTip(args["tip"])
         self.args: dict = args
         self.popMenu: QMenu
-        self.audiobook: Audiobook = Audiobook()
         # Signals
         if isinstance(args["action"], str):
             if args["action"] == "file_dialog":
@@ -402,15 +398,16 @@ class PushButton(QPushButton):
 
     def export(self) -> None:
         """Export all Audiobooks"""
+        audiobook: Audiobook = Audiobook()
         # open export dialog
         dialog: Dialog = Dialog(self.args["parent"]).export_ui()
         # connect export signals to dialog
-        self.audiobook.signals.progress_range.connect(lambda: dialog.progressbar.setRange(0, self.audiobook.progress_range))
-        self.audiobook.signals.progress_value.connect(lambda: dialog.progressbar.setValue(self.audiobook.progress_value))
-        self.audiobook.signals.export_file.connect(lambda: dialog.text.appendPlainText(self.audiobook.export_file))
-        self.audiobook.signals.unlock_ui.connect(lambda: dialog.buttonbox.setEnabled(self.audiobook.unlock_ui))
+        audiobook.signals.progress_range.connect(lambda: dialog.progressbar.setRange(0, audiobook.progress_range))
+        audiobook.signals.progress_value.connect(lambda: dialog.progressbar.setValue(audiobook.progress_value))
+        audiobook.signals.export_file.connect(lambda: dialog.text.appendPlainText(audiobook.export_file))
+        audiobook.signals.unlock_ui.connect(lambda: dialog.buttonbox.setEnabled(audiobook.unlock_ui))
         # export function
-        self.audiobook.export()
+        audiobook.export()
 
     def file_dialog(self) -> None:
         """Show a system file dialog and set user input to select path"""
@@ -521,7 +518,6 @@ class ToggleButton(QPushButton):
                                          margin: 5px 5px 5px 0px;}\
                             QPushButton:hover {background-color: #43be71;}")
         self.setToolTip(args["tip"])
-        self.audiobook: Audiobook = Audiobook()
         self.args: dict = args
         self.args.update({"state": True,
                           "function": None})
@@ -539,14 +535,14 @@ class ToggleButton(QPushButton):
 
     def toggle(self) -> None:
         """Update toggle state of button, change color, json and audiobook counter"""
-        data: dict = self.audiobook.read_data()
+        data: dict = Audiobook().read_data()
         audiobook_index: str = self.args["audiobook_key"]
         toggle_state: bool = data[audiobook_index]["export"]
         data[audiobook_index].update({"export": False if toggle_state else True})
         self.args["state"] = False if toggle_state else True
         self.toggle_color()
         self.args["function"]()
-        self.audiobook.save_data(data)
+        Audiobook().save_data(data)
 
 
 class Label(QLabel):
@@ -586,9 +582,6 @@ class BookCover(QLabel):
                                         border-radius: 10px;}\
                             PushButton:hover {background-color: #ff3d43;}")
         self.setAcceptDrops(True)
-        self.audiobook: Audiobook = Audiobook()
-        self.dialog: Dialog = Dialog(args["parent"].parent().parent())
-        self.audiobook.signals.error_msg.connect(lambda: self.dialog.log_ui(self.audiobook.error_msg))
         self.cover: QPixmap = QPixmap()
         # buttons are visible when cover image is displayed
         self.delete_button: PushButton = PushButton(dict(parent=self,
@@ -609,19 +602,21 @@ class BookCover(QLabel):
     def show_buttons(self, state: bool) -> None:
         """Set button visibility"""
         self.delete_button.setVisible(state)
-        if self.cover.width() % self.cover.height():
-            self.resize_button.setVisible(state)
+        if not self.cover.isNull():
+            state = True if self.cover.width() % self.cover.height() else False
+        self.resize_button.setVisible(state)
 
     def delete_cover(self) -> None:
         """Delete active cover image"""
-        self.audiobook.delete_data(dict(cover="Delete",
+        Audiobook().delete_data(dict(cover="Delete",
                                      audiobook_key=self.args["audiobook_key"]))
+        self.cover = QPixmap()
         self.show_buttons(False)
         self.setText(self.cover_text)
 
     def resize_cover(self) -> None:
         """Squares 1:1 cover image"""
-        path: str = self.audiobook.resize_cover(self.args["audiobook_key"])
+        path: str = Audiobook().resize_cover(self.args["audiobook_key"])
         self.cover.load(path)
         self.setPixmap(self.cover.scaledToHeight(70))
         self.show_buttons(True)
@@ -639,16 +634,17 @@ class BookCover(QLabel):
                 path: str = url.path()
                 format: str = QFileInfo(url.path()).suffix()
                 if not format in QImageWriter.supportedImageFormats():
-                    self.audiobook.error_msg = f"\"{format.upper()}\" is not a supported file format.\n\n{path}"
+                    Dialog(self.args["parent"]).log_ui(f"\"{format.upper()}\"\
+                                                         is not a supported file format.\n\n{path}")
                     continue
                 self.cover.load(path)
                 self.setPixmap(self.cover.scaledToHeight(70))
                 event.acceptProposedAction()
                 audiobook_index: str = self.args["audiobook_key"]
-                data: dict = self.audiobook.read_data()
+                data: dict = Audiobook().read_data()
                 data[audiobook_index].update({"cover": path})
                 self.show_buttons(True)
-                self.audiobook.save_data(data)
+                Audiobook().save_data(data)
         else:
             super().dropEvent(event)
 
@@ -673,17 +669,16 @@ class TextField(QLineEdit):
                                        background-color: transparent;}\
                             QLineEdit:focus {border: 2px solid #568dff;}")
         self.args: dict = args
-        self.audiobook: Audiobook = Audiobook()
         # Signals
         self.textChanged.connect(self.text_edited)
 
     def text_edited(self) -> None:
         """User is editing textfields"""
-        data: dict = self.audiobook.read_data()
+        data: dict = Audiobook().read_data()
         audiobook_index: str = self.args["audiobook_key"]
         audiobook_input: str = self.args["name"].lower()
         data[audiobook_index].update({audiobook_input: self.text()})
-        self.audiobook.save_data(data)
+        Audiobook().save_data(data)
 
 
 class ExportOptions(QComboBox):
@@ -706,16 +701,15 @@ class ExportOptions(QComboBox):
                                        background-color: transparent;\
                                        selection-background-color: #568dff;}")
         self.args: dict = args
-        self.audiobook: Audiobook = Audiobook()
         # Signals
         self.currentIndexChanged.connect(self.index_changed)
 
     def index_changed(self) -> None:
         """Update json when index is changed"""
         audiobook_index: str = self.args["audiobook_key"]
-        data: dict = self.audiobook.read_data()
+        data: dict = Audiobook().read_data()
         data[audiobook_index].update({"quality": self.currentIndex()})
-        self.audiobook.save_data(data)
+        Audiobook().save_data(data)
 
 
 class Dialog(QDialog):
@@ -755,6 +749,32 @@ class Dialog(QDialog):
 
     def about_ui(self) -> Self:
         """App About dialog"""
+        self.setStyleSheet("QLabel {color: grey;\
+                                    font-family: Arial;\
+                                    font-size: 12px;\
+                                    font-weight: light;}")
+        logo = QLabel()
+        logo.setPixmap(QPixmap(QDir.currentPath()+"/AudiobookEncoder/core/icons/logo.png").scaledToWidth(400, Qt.SmoothTransformation))
+        version = QLabel(f"<b>Version 1.0</b>")
+        copyright = QLabel(f"<center>Copyright 2013-{QDateTime().currentDateTime().date().year()}<br><a href=\"mailto:dennis.oesterle@icloud.com\">Dennis Oesterle</a></center>")
+        copyright.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("mailto:dennis.oesterle@icloud.com")))
+        __license__ = "CC BY-NC-SA - Attribution-NonCommercial-ShareAlike"
+        license = QLabel("<center><b>License</b><br>{0}<br>{1}</center>".format(__license__.split(" - ")[0], __license__.split(" - ")[1]))
+        sub_credits = QLabel("<center><b>Additional Credits</b>")
+        python = QLabel("<center><a href=\"http://www.python.org\">Python</a></center>")
+        python.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("mailto:dennis.oesterle@icloud.com")))
+        pyside = QLabel("<center><a href=\"http://www.riverbankcomputing.co.uk/software/pyqt/download\">PySide6</a></center>")
+        pyside.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("mailto:dennis.oesterle@icloud.com")))
+        mutagen = QLabel("<center><a href=\"http://code.google.com/p/mutagen/\">Mutagen</a></center>")
+        mutagen.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("mailto:dennis.oesterle@icloud.com")))
+        abbinder = QLabel("<center><a href=\"http://bluezbox.com/audiobookbinder/abbinder.html\">abbinder</a></center>")
+        abbinder.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("mailto:dennis.oesterle@icloud.com")))
+        about: list = [version, copyright, license, sub_credits, python, pyside, mutagen, abbinder]
+        # add to grid layout
+        self.grid_layout.addWidget(logo, 0, 0, Qt.AlignCenter)
+        for i, e in enumerate(about, 2):
+            self.grid_layout.addWidget(e, i, 0, Qt.AlignCenter)
+        self.grid_layout.addWidget(self.buttonbox, len(about)+2, 0)
         self.open()
         return self
 
