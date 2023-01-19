@@ -211,7 +211,7 @@ class TreeWidget(QTreeWidget):
                     if not audiobook_data[e_audiobook][input]:
                         continue
                     input_widget.cover.load(audiobook_data[e_audiobook][input])
-                    input_widget.setPixmap(input_widget.cover.scaledToHeight(70))
+                    input_widget.setPixmap(input_widget.cover.scaledToHeight(70, Qt.SmoothTransformation))
                     input_widget.show_buttons(True)
                 elif isinstance(input_widget, TextField):
                     input_widget.setText(audiobook_data[e_audiobook][input])
@@ -618,7 +618,7 @@ class BookCover(QLabel):
         """Squares 1:1 cover image"""
         path: str = Audiobook().resize_cover(self.args["audiobook_key"])
         self.cover.load(path)
-        self.setPixmap(self.cover.scaledToHeight(70))
+        self.setPixmap(self.cover.scaledToHeight(70, Qt.SmoothTransformation))
         self.show_buttons(True)
 
     def dragEnterEvent(self, event) -> None:
@@ -638,7 +638,7 @@ class BookCover(QLabel):
                                                          is not a supported file format.\n\n{path}")
                     continue
                 self.cover.load(path)
-                self.setPixmap(self.cover.scaledToHeight(70))
+                self.setPixmap(self.cover.scaledToHeight(70, Qt.SmoothTransformation))
                 event.acceptProposedAction()
                 audiobook_index: str = self.args["audiobook_key"]
                 data: dict = Audiobook().read_data()
