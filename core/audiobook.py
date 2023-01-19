@@ -44,6 +44,16 @@ class Audiobook():
         self._progress_value: int = 0
         self._export_file: str = ""
         self._unlock_ui: bool = False
+        self._error_msg: str = ""
+
+    @property
+    def error_msg(self) -> str:
+        return self._error_msg
+
+    @error_msg.setter
+    def error_msg(self, msg: str) -> None:
+        self._error_msg = msg
+        self.signals.error_msg.emit(msg)
 
     @property
     def export_file(self) -> str:
@@ -132,6 +142,7 @@ class Audiobook():
                 files.append(each_path.path())
         files.sort()
         if not files:
+            self.error_msg = "Only MP3s are allowed. No files have been added."
             return {}
         # add meta data to json
         for each_file in files:
@@ -269,7 +280,7 @@ class Audiobook():
             return
         self.unlock_ui = False
         self.progress_range = len(self.data_export)
-        self.export_file = "Start exporting...\n"
+        self.export_file = "Start exporting {self.progress_range} file(s)...\n"
         # Extra thread to avoid ui freeze
         export_thread: Thread = Thread(target=self.export_pool)
         export_thread.start()
@@ -394,3 +405,4 @@ class CostumSignals(QObject):
     progress_range = Signal(int)
     progress_value = Signal(int)
     unlock_ui = Signal(bool)
+    error_msg = Signal(str)
