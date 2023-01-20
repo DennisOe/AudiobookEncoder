@@ -6,7 +6,7 @@ from multiprocessing.pool import ThreadPool
 from subprocess import Popen, PIPE, STDOUT
 from threading import Thread
 from PySide6.QtCore import (QUrl, QSize, QFileInfo, QDirIterator, QStandardPaths,
-                            QThreadPool, Signal, QObject, QTimer)
+                            QThreadPool, Signal, QObject)
 from PySide6.QtGui import QImage
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from jsonio  import JsonIO
@@ -284,7 +284,7 @@ class Audiobook():
 
     def export_audiobook(self, data: dict) -> None:
         """Main export function"""
-        time.sleep(random.uniform(0.01, 1.0))
+        time.sleep(random.uniform(0.01, 5.0))
         self.export_file = f"%  STARTED --> {data['title']}\n"
         export_file: str = f"{data['destination']}/{data['title']}.m4b"
         if not QFileInfo(data['destination']).exists():
