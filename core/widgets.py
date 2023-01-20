@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (QWidget, QTreeWidget, QAbstractItemView, QTreeWid
                                QMenu, QWidgetAction, QGridLayout, QDialog, QDialogButtonBox,
                                QPlainTextEdit, QProgressBar)
 from PySide6.QtGui import QPixmap, QImageWriter, QDesktopServices
-from PySide6.QtCore import Qt, QSize, QFileInfo, QStandardPaths, QDateTime, QUrl, QDir
+from PySide6.QtCore import Qt, QSize, QFileInfo, QStandardPaths, QUrl, QDir
 from datetime import timedelta
 from audiobook import Audiobook, Preset, AudioPlayer
 from typing import Self
@@ -16,7 +16,7 @@ class TreeWidget(QTreeWidget):
         super().__init__()
         self.setGeometry(*args["geometry"])
         self.setHeaderLabels(["Audiobook (0/0)", "Duration"])
-        self.header().resizeSection(0, args["geometry"][2]-110)
+        #self.header().resizeSection(0, args["geometry"][2]-110)
         self.header().setStretchLastSection(True)
         self.setAnimated(True)
         self.setAcceptDrops(True)
@@ -51,6 +51,7 @@ class TreeWidget(QTreeWidget):
                 for parent_item_index in range(root_item.childCount()):
                     parent_item: TreeWidgetItem = self.topLevelItem(parent_item_index)
                     if parent_item == self.selectedItems()[0].parent():
+                        parent_item.setFlags(parent_item.flags() | Qt.ItemIsDropEnabled)
                         continue
                     # disable drop events to avoid moving items between parent items
                     parent_item.setFlags(parent_item.flags() & ~Qt.ItemIsDropEnabled)
@@ -747,28 +748,28 @@ class Dialog(QDialog):
         self.open()
         return self
 
-    def about_ui(self) -> Self:
+    def about_ui(self, args: dict) -> Self:
         """App About dialog"""
         self.setStyleSheet("QLabel {color: grey;\
                                     font-family: Arial;\
                                     font-size: 12px;\
                                     font-weight: light;}")
         logo = QLabel()
-        logo.setPixmap(QPixmap(QDir.currentPath()+"/AudiobookEncoder/core/icons/logo.png").scaledToWidth(400, Qt.SmoothTransformation))
-        version = QLabel(f"<b>Version 1.0</b>")
-        copyright = QLabel(f"<center>Copyright 2013-{QDateTime().currentDateTime().date().year()}<br><a href=\"mailto:dennis.oesterle@icloud.com\">Dennis Oesterle</a></center>")
-        copyright.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("mailto:dennis.oesterle@icloud.com")))
-        __license__ = "CC BY-NC-SA - Attribution-NonCommercial-ShareAlike"
-        license = QLabel("<center><b>License</b><br>{0}<br>{1}</center>".format(__license__.split(" - ")[0], __license__.split(" - ")[1]))
+        logo.setPixmap(QPixmap(QDir.currentPath()+"/AudiobookEncoder/icons/logo.png").scaledToWidth(400, Qt.SmoothTransformation))
+        version = QLabel(f"<b>Version {args['version']}</b>")
+        copyright = QLabel(f"<center>{args['copyright']}<br>\
+                             <a href=\"mailto:{args['email']}\">{args['author']}</a></center>")
+        copyright.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl(args["email"])))
+        license = QLabel(f"<center><b>License</b><br>{args['license'][0]}<br>{args['license'][1]}</center>")
         sub_credits = QLabel("<center><b>Additional Credits</b>")
-        python = QLabel("<center><a href=\"http://www.python.org\">Python</a></center>")
-        python.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("mailto:dennis.oesterle@icloud.com")))
-        pyside = QLabel("<center><a href=\"http://www.riverbankcomputing.co.uk/software/pyqt/download\">PySide6</a></center>")
-        pyside.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("mailto:dennis.oesterle@icloud.com")))
-        mutagen = QLabel("<center><a href=\"http://code.google.com/p/mutagen/\">Mutagen</a></center>")
-        mutagen.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("mailto:dennis.oesterle@icloud.com")))
-        abbinder = QLabel("<center><a href=\"http://bluezbox.com/audiobookbinder/abbinder.html\">abbinder</a></center>")
-        abbinder.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("mailto:dennis.oesterle@icloud.com")))
+        python = QLabel("<center><a href=\"https://www.python.org\">Python</a></center>")
+        python.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("https://www.python.org")))
+        pyside = QLabel("<center><a href=\"https://www.qt.io/qt-for-python\">PySide 6</a></center>")
+        pyside.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("https://www.qt.io/qt-for-python")))
+        mutagen = QLabel("<center><a href=\"https://mutagen.readthedocs.io\">Mutagen</a></center>")
+        mutagen.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("https://mutagen.readthedocs.io")))
+        abbinder = QLabel("<center><a href=\"https://github.com/gonzoua/AudiobookBinder\">Abbinder</a></center>")
+        abbinder.linkActivated.connect(lambda: QDesktopServices().openUrl(QUrl("https://github.com/gonzoua/AudiobookBinder")))
         about: list = [version, copyright, license, sub_credits, python, pyside, mutagen, abbinder]
         # add to grid layout
         self.grid_layout.addWidget(logo, 0, 0, Qt.AlignCenter)
