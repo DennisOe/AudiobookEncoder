@@ -30,7 +30,6 @@ class TreeWidget(QTreeWidget):
                                               qproperty-alignment: AlignCenter;\
                                               color: grey;}")
         self.create_tree(Audiobook().read_data())
-        self.setCurrentItem(self.topLevelItem(0))
         self.help_text.move(self.rect().center() - self.help_text.rect().center())
         self.audio_player: AudioPlayer = AudioPlayer(self)
         self.last_played_item: TreeWidgetItem | bool = False
