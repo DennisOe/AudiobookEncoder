@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (QWidget, QTreeWidget, QAbstractItemView, QTreeWid
                                QMenu, QWidgetAction, QGridLayout, QDialog, QDialogButtonBox,
                                QPlainTextEdit, QProgressBar)
 from PySide6.QtGui import QPixmap, QImageWriter, QDesktopServices
-from PySide6.QtCore import Qt, QSize, QFileInfo, QStandardPaths, QUrl, QDir
+from PySide6.QtCore import Qt, QSize, QFileInfo, QStandardPaths, QUrl
 from datetime import timedelta
 from audiobook import Audiobook, Preset, AudioPlayer
 from typing import Self
@@ -678,6 +678,12 @@ class TextField(QLineEdit):
         data: dict = Audiobook().read_data()
         audiobook_index: str = self.args["audiobook_key"]
         audiobook_input: str = self.args["name"].lower()
+        if "title" in audiobook_input:
+            cursor_position: int = self.cursorPosition()
+            # replace illigal characters
+            self.setText("".join("-" if i in "\/|<>*#'´`^°" else i for i in self.text()))
+            # set cursor to editing position, curser position is reseted after setText()
+            self.setCursorPosition(cursor_position)
         data[audiobook_index].update({audiobook_input: self.text()})
         Audiobook().save_data(data)
 
