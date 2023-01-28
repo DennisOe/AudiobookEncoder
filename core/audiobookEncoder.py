@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QApplication, QMainWindow, QMenuBar, QWidget
 from PySide6.QtGui import QIcon, QAction
-from PySide6.QtCore import QDir, QDateTime
+from PySide6.QtCore import QDateTime
 from widgets import TreeWidget, PushButton, GridLayout, Dialog
 import sys, os
 
