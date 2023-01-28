@@ -7,4 +7,8 @@ Requirements:
 * Mutagen
 * Abbinder
 
+Run AudiobookEncoder from Terminal:
+```
+python audiobookEncoder.py
+```
 ![AudiobookEncoder Screenshot](audiobookEncoder_screenshot.png)
