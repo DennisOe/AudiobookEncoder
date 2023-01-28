@@ -2,7 +2,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QMenuBar, QWidget
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import QDir, QDateTime
 from widgets import TreeWidget, PushButton, GridLayout, Dialog
-import sys
+import sys, os
 
 
 __author__: str = "Dennis Oesterle"
@@ -52,7 +52,7 @@ class AudiobookEncoderMainWindow(QMainWindow):
 
 def main() -> None:
     app: QApplication = QApplication(sys.argv)
-    app.setWindowIcon(QIcon(QDir.currentPath()+"/AudiobookEncoder/icons/app_icon.png"))
+    app.setWindowIcon(QIcon(os.path.dirname(os.path.realpath(__file__)) + "/../icons/app_icon.png"))
     mainwindow: QMainWindow = AudiobookEncoderMainWindow()
     mainwindow.show()
     sys.exit(app.exec())

@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt, QSize, QFileInfo, QStandardPaths, QUrl, QDir
 from datetime import timedelta
 from audiobook import Audiobook, Preset, AudioPlayer
 from typing import Self
+import os
 
 
 
@@ -754,7 +755,7 @@ class Dialog(QDialog):
                                     font-size: 12px;\
                                     font-weight: light;}")
         logo = QLabel()
-        logo.setPixmap(QPixmap(QDir.currentPath()+"/AudiobookEncoder/icons/logo.png").scaledToWidth(400, Qt.SmoothTransformation))
+        logo.setPixmap(QPixmap(os.path.dirname(os.path.realpath(__file__)) + "/../icons/logo.png").scaledToWidth(400, Qt.SmoothTransformation))
         version = QLabel(f"<b>Version {args['version']}</b>")
         copyright = QLabel(f"<center>{args['copyright']}<br>\
                              <a href=\"mailto:{args['email']}\">{args['author']}</a></center>")

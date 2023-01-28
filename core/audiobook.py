@@ -1,4 +1,4 @@
-import time, random
+import time, random, os
 from mutagen.easymp4 import EasyMP4
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4, MP4Cover
@@ -16,8 +16,8 @@ class Audiobook():
     """Edit data, audiobook files and meta data"""
     def __init__(self) -> None:
         super().__init__()
-        self.audiobook_json_path: str = "AudiobookEncoder/core/audiobooks.json"
-        self.abbinder_path: str = "AudiobookEncoder/core/abbinder"
+        self.audiobook_json_path: str = os.path.dirname(os.path.realpath(__file__)) + "/audiobooks.json"
+        self.abbinder_path: str = os.path.dirname(os.path.realpath(__file__)) + "/abbinder"
         self.desktop_path: str = QStandardPaths.standardLocations(QStandardPaths.DesktopLocation)[0]
         self.quality_presets: list[str] = ["96 KBps, Mono, 44100",
                                            "96 KBps, Stereo, 48000",
@@ -310,7 +310,7 @@ class Audiobook():
 class Preset():
     """Edit preset data"""
     def __init__(self) -> None:
-        self.preset_json_path: str = "AudiobookEncoder/core/presets.json"
+        self.preset_json_path: str = os.path.dirname(os.path.realpath(__file__)) + "/presets.json"
         self.desktop_path: str = QStandardPaths.standardLocations(QStandardPaths.DesktopLocation)[0]
         self.data: dict = {"author": {"destination": self.desktop_path,
                                       "quality": 1}}
