@@ -1,4 +1,4 @@
 .DS_Store
-core/__pycache__/
-core/abbinder
-core/abbinder_license.txt
+src/__pycache__/
+src/abbinder
+src/abbinder_license.txt
