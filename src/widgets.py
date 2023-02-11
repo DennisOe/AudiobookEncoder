@@ -17,7 +17,6 @@ class TreeWidget(QTreeWidget):
         super().__init__()
         self.setGeometry(*args["geometry"])
         self.setHeaderLabels(["Audiobook (0/0)", "Duration"])
-        #self.header().resizeSection(0, args["geometry"][2]-110)
         self.header().setStretchLastSection(True)
         self.setAnimated(True)
         self.setAcceptDrops(True)
@@ -34,6 +33,23 @@ class TreeWidget(QTreeWidget):
         self.help_text.move(self.rect().center() - self.help_text.rect().center())
         self.audio_player: AudioPlayer = AudioPlayer(self)
         self.last_played_item: TreeWidgetItem | bool = False
+
+    def resizeEvent(self, event) -> None:
+        self.help_text.move(self.rect().center() - self.help_text.rect().center())
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        """Open file dialog when TreeWidget is double clicked or
+           expand / collapse TreeWidgetItem"""
+        if not event.button() == Qt.LeftButton:
+            return
+        if self.selectedItems():
+            select_item: TreeWidgetItem = self.selectedItems()[0]
+            select_item.setExpanded(True if not select_item.isExpanded() else False)
+            return
+        desktop_path: str = QStandardPaths.standardLocations(QStandardPaths.DesktopLocation)[0]
+        audiobook_path: str = QFileDialog.getExistingDirectory(self.parent(), "Import audiobook...", desktop_path)
+        if audiobook_path:
+            self.import_audiobook([QUrl(audiobook_path)])
 
     def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls():
@@ -58,13 +74,9 @@ class TreeWidget(QTreeWidget):
         super().dragMoveEvent(event)
 
     def dropEvent(self, event) -> None:
-        """Drop QTreeItemWidgets, folders or files into widget"""
+        """Drop TreeItemWidgets, folders or files into widget"""
         if event.mimeData().hasUrls():
-            data: dict = Audiobook().get_data(event.mimeData().urls())
-            if not data:
-                Dialog(self).log_ui("Only MP3s are allowed. No files have been added.")
-                return
-            self.create_tree(data)
+            self.import_audiobook(event.mimeData().urls())
         else:
             items: TreeWidgetItem = self.selectedItems()
             # get indices of selected QTreeWidgetItems before drop event
@@ -250,6 +262,14 @@ class TreeWidget(QTreeWidget):
                 parent_item: TreeWidgetItem = self.topLevelItem(parent_item_index)
                 if e_data["title"] in parent_item.user_inputs["title"].text():
                     parent_item.user_inputs["duration"].setText(str(timedelta(seconds=e_data["duration"])))
+
+    def import_audiobook(self, paths: list[QUrl]):
+        """Import audiobook from given paths"""
+        data: dict = Audiobook().get_data(paths)
+        if not data:
+            Dialog(self).log_ui("Only MP3s are allowed. No files have been added.")
+            return
+        self.create_tree(data)
 
 
 class TreeWidgetItem(QTreeWidgetItem):
