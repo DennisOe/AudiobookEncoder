@@ -346,7 +346,7 @@ class Preset():
     def auto_apply_data(self, meta_data: str) -> dict:
         """Compares data keys with meta data to auto apply a preset"""
         json_data: dict = self.read_data()
-        preset_key: list[str] = [e_key for e_key in json_data.keys() if e_key in meta_data]
+        preset_key: list[str] = [e_key for e_key in json_data.keys() if e_key.lower() in meta_data.lower()]
         if not preset_key:
             return {}
         sorted(preset_key, key=len)
